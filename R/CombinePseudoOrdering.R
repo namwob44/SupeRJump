@@ -9,7 +9,8 @@
 #'
 #' @examples
 CombinePseudoOrdering<-function(sce,terminal_state_list){
-  score_mat<-sce@meta.data[,(ncol(sce@meta.data)-length(terminal_state_list)+1):ncol(sce@meta.data)]
+  score_mat<-sce@meta.data[,grep("score",colnames(sce@meta.data))]
+
   uniform_dist<-rep(x=1,times=length(terminal_state_list))
   test_prob <-uniform_dist/sum(uniform_dist)
 
@@ -18,9 +19,12 @@ CombinePseudoOrdering<-function(sce,terminal_state_list){
                                     log2(score_mat_dist), na.rm = TRUE)
   Entropy_max = -sum(test_prob * log2(test_prob), na.rm = TRUE)
   Efficiency = Entropy_score/Entropy_max
-
-  sce@meta.data[,ncol(sce@meta.data)+1]<-1-Efficiency
-  colnames(sce@meta.data)[ncol(sce@meta.data)]<- "Combined_Ordering"
+  if(any(grepl("Combined_Ordering",colnames(sce@meta.data)))){
+        sce@meta.data[, "Combined_Ordering"] <- 1 - Efficiency
+    }else{
+        sce@meta.data[, ncol(sce@meta.data) + 1] <- 1 - Efficiency
+        colnames(sce@meta.data)[ncol(sce@meta.data)] <- "Combined_Ordering"        
+    }
   return(sce)
 
 }
