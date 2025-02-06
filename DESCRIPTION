@@ -1,18 +1,35 @@
 Package: SuperJump
 Type: Package
-Title: What the Package Does (Title Case)
-Version: 0.1.0
-Author: Who wrote it
-Maintainer: The package maintainer <yourself@somewhere.net>
+Title: What the package does (short line)
+Version: 1.0
+Date: 2025-01-19
+Author: Michael Bowman
+Maintainer: Michael Bowman <yourfault@somewhere.net>
 Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
-License: What license is it under?
-Encoding: UTF-8
-LazyData: true
+License: MIT boyo
+Imports: Rcpp (>= 1.0.13-1),
+	 RcppEigen,
+	 RcppParallel,
+	 dplyr,
+	 cowplot,
+	 Seurat,
+	 broom,
+	 decoupleR,
+	 doParallel,
+	 e1071,
+	 expm,
+	 foreach,
+	 msigdbr,
+	 mvtnorm,
+ 	 nloptr,
+	 pals,
+	 pracma,
+	 purrr, 
+	 tibble,
+	 tidyr,
+	 wordspace,
+	 stats,
+	 magrittr
+LinkingTo: Rcpp, RcppEigen, RcppParallel
 RoxygenNote: 7.3.2
-LinkingTo: 
-    Rcpp,
-    RcppEigen,
-    RcppParallel
-Imports: 
-    Rcpp
+Encoding: UTF-8
