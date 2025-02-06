@@ -1,7 +1,7 @@
 #' Get Visitation Probability and Expected timesteps for TPM
 #'
 #' @param Nmat 
-#'
+#' @useDynLib SuperJump
 #' @return
 #' @export
 #'
