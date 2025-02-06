@@ -2,7 +2,7 @@
 #'
 #' @param TPM_matrix 
 #' @param sink_cells 
-#'
+#' @useDynLib SuperJump
 #' @return
 #' @export
 #'
