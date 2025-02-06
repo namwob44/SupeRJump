@@ -2,7 +2,7 @@
 #' Get Conditional Mean First Passage Time in R parallel strategy
 #'
 #' @param TPM_matrix 
-#'
+#' @useDynLib SuperJump
 #' @return
 #' @export
 #'
