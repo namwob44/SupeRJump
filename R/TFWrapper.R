@@ -3,15 +3,16 @@
 #' @param suerat_obj 
 #' @param organism 
 #' @param model 
-#'
+#' @param assay_name
 #' @return
 #' @export
 #'
 #' @examples
-TFWrapper<-function(suerat_obj,organism="mouse",model="TF"){
-  mat_normed<-as.matrix(suerat_obj@assays$RNA$data)
-  rownames(mat_normed)<-rownames(suerat_obj@assays$RNA)
-  colnames(mat_normed)<-colnames(suerat_obj@assays$RNA)
+TFWrapper<-function(suerat_obj,assay_name="RNA",organism="mouse",model="TF"){
+  mat_normed<-as.matrix(Seurat::GetAssayData(seurat_obj_subset, assay =assay_name, layer = 'data'))
+
+  #rownames(mat_normed)<-rownames(suerat_obj@assays$RNA)
+  #colnames(mat_normed)<-colnames(suerat_obj@assays$RNA)
   if(model=="TF"){
     net <- get_collectri(organism=organism, split_complexes=FALSE)
     acts_norm <- run_ulm(mat=mat_normed, net=net, .source='source', .target='target',
