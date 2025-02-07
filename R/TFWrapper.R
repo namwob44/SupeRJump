@@ -14,8 +14,8 @@ TFWrapper<-function(suerat_obj,assay_name="RNA",organism="mouse",model="TF"){
   #rownames(mat_normed)<-rownames(suerat_obj@assays$RNA)
   #colnames(mat_normed)<-colnames(suerat_obj@assays$RNA)
   if(model=="TF"){
-    net <- get_collectri(organism=organism, split_complexes=FALSE)
-    acts_norm <- run_ulm(mat=mat_normed, net=net, .source='source', .target='target',
+    net <- decoupleR::get_collectri(organism=organism, split_complexes=FALSE)
+    acts_norm <- decoupleR::run_ulm(mat=mat_normed, net=net, .source='source', .target='target',
                          .mor='mor', minsize = 5)
     suerat_obj[['tfsulm']] <- acts_norm %>%
       tidyr::pivot_wider(id_cols = 'source', names_from = 'condition',
@@ -29,7 +29,7 @@ TFWrapper<-function(suerat_obj,assay_name="RNA",organism="mouse",model="TF"){
   }
   if(model=="progney"){
     net <- decoupleR::get_progeny(organism = "human", top = 500)
-    acts_norm <- run_mlm(mat=mat_normed, net=net, .source='source', .target='target',
+    acts_norm <- decoupleR::run_mlm(mat=mat_normed, net=net, .source='source', .target='target',
                          .mor='weight', minsize = 5)
     suerat_obj[['progeny']] <- acts_norm %>%
       tidyr::pivot_wider(id_cols = 'source', names_from = 'condition',
@@ -45,7 +45,7 @@ TFWrapper<-function(suerat_obj,assay_name="RNA",organism="mouse",model="TF"){
     net <- msigdbr::msigdbr(species = "human",category = "H")%>%
       select(source=gs_name,target=gene_symbol)%>%
       mutate(weight=1)%>%distinct()
-    acts_norm <- run_mlm(mat=mat_normed, net=net, .source='source', .target='target',
+    acts_norm <- decoupleR::run_mlm(mat=mat_normed, net=net, .source='source', .target='target',
                          minsize = 5)
     suerat_obj[['hallmark']] <- acts_norm %>%
       tidyr::pivot_wider(id_cols = 'source', names_from = 'condition',
