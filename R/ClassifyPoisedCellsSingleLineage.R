@@ -83,4 +83,3 @@ ClassifyPoisedCellsSingleLineage<-function(data_subset,lineages_to_compare){
   data_subset$Biased<-ifelse(losses>=outlier_cutoff_val,"biased","not")
   return(data_subset)
 }
-}
