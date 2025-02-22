@@ -24,7 +24,9 @@ GetFateMatrix<-function(TPM_matrix,sink_cells){
   rownames(Bmat)<-rownames((TPM_matrix))
   colnames(Bmat)<-colnames(Rmat)
   Bmat[-which(rownames((TPM_matrix))%in%sink_cells$row_names),]<-eigenMapMatMult(Q_solved,Rmat)
-  diag(Bmat[which(rownames((TPM_matrix))%in%sink_cells$row_names),])<-1
+  if(ncol(Bmat)>1){
+    diag(Bmat[which(rownames((TPM_matrix))%in%sink_cells$row_names),])<-1
+  }
   rownames(Q_solved)<-colnames(Q_solved)<-rownames(Qmat)#rownames(TPM_matrix)[-which(rownames((TPM_matrix))%in%sink_cells$row_names)]
   return(list("Bmat"=Bmat,
               "Nmat"=Q_solved))
