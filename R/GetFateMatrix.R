@@ -15,11 +15,11 @@ GetFateMatrix<-function(TPM_matrix,sink_cells){
   # check columns have more than 1 entry
   TPM_matrix<-removeIllConditionedCells(TPM_matrix)
   
-  Rmat<-(TPM_matrix)[-which(rownames((TPM_matrix))%in%sink_cells$row_names),which(colnames((TPM_matrix))%in%sink_cells$row_names)]
+  Rmat<-(TPM_matrix)[-which(rownames((TPM_matrix))%in%sink_cells$row_names),which(colnames((TPM_matrix))%in%sink_cells$row_names)]%>%as.matrix # need this matrix conversion to handle single absorbing state
   Qmat<-(TPM_matrix)[-which(rownames((TPM_matrix))%in%sink_cells$row_names),-which(colnames((TPM_matrix))%in%sink_cells$row_names)]
   
   Q_solved<-eigenMatInverse(diag(nrow=dim(Qmat)[1])-Qmat)#this shit goes vroom.
-  
+  colnames(Rmat)<-colnames(TPM_matrix)[which(colnames((TPM_matrix))%in%sink_cells$row_names)] # need this in case they only have a single absorbing state
   Bmat<-matrix(data=0,nrow=nrow((TPM_matrix)),ncol=dim(Rmat)[2])
   rownames(Bmat)<-rownames((TPM_matrix))
   colnames(Bmat)<-colnames(Rmat)
