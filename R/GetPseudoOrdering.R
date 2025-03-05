@@ -24,7 +24,7 @@ GetPseudoOrdering<-function(sce,supervised_list_of_list,name_of_score){
   }else{
     sce<-Seurat::AddModuleScore(sce,features=
                                   #list("score"=c(gsub("(?<=\\b)([a-z])", "\\U\\1", tolower(supervised_list_of_list), perl=TRUE))),
-                                   list("score"=c(gsub("((?<=\\b.)[[:upper:]])", "\\L\\1", (supervised_list_of_list[[iter]]), perl=TRUE))),
+                                   list("score"=c(gsub("((?<=\\b.)[[:upper:]])", "\\L\\1", (supervised_list_of_list), perl=TRUE))),
                                 name=as.character(name_of_score),search = TRUE)
     sce@meta.data[,dim(sce@meta.data)[2]]<-sce@meta.data[,dim(sce@meta.data)[2]]-min(sce@meta.data[,dim(sce@meta.data)[2]]) # this will make lowest value 0.
   }
