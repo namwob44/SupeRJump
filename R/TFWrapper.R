@@ -9,7 +9,7 @@
 #'
 #' @examples
 TFWrapper<-function(suerat_obj,assay_name="RNA",organism="mouse",model="TF"){
-  mat_normed<-as.matrix(Seurat::GetAssayData(seurat_obj_subset, assay =assay_name))#, layer = 'data'))
+  mat_normed<-as.matrix(Seurat::GetAssayData(seurat_obj, assay =assay_name))#, layer = 'data'))
 
   #rownames(mat_normed)<-rownames(suerat_obj@assays$RNA)
   #colnames(mat_normed)<-colnames(suerat_obj@assays$RNA)
