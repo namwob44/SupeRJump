@@ -39,7 +39,7 @@ GetJumpProgramFeatures<-function(sce_obj,down_Z,Y,model_fits_list,foldername,top
     tibble::rownames_to_column(var="PC_names")%>%
     tidyr::pivot_longer(cols=!PC_names,names_to = "Sink_Type",values_to="Jump")%>%
     group_by(PC_names)%>%filter(Jump==TRUE)
-  write.csv(jump_df,"~/Desktop/jump_table.csv")
+  write.csv(jump_df,paste0(foldername,"jump_table.csv"))
   PCs_to_look_into<-(jump_df%>%pull(PC_names)%>%unique)
   print(PCs_to_look_into)
   feature_loadings_mat<-sce_obj@reductions[["pca"]]@feature.loadings # *sce_obj@reductions[["pca"]]@stdev
