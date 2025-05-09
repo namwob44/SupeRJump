@@ -166,7 +166,7 @@ SEXP eigenMatXMatXMatINV(const Eigen::Map<Eigen::MatrixXd> A,const Eigen::Map<Ei
 SEXP eigenOutputFlightTime(const Eigen::Map<Eigen::MatrixXd> Qmat,const Eigen::Map<Eigen::MatrixXd> Rmat){
   Eigen::MatrixXd N = (Eigen::MatrixXd::Identity(Qmat.rows(),Qmat.cols())-Qmat).inverse();
   Eigen::VectorXd B = N*Rmat;
-  Rcpp::Rcout<<(B.asDiagonal().toDenseMatrix()).inverse()<<std::endl;
+  //Rcpp::Rcout<<(B.asDiagonal().toDenseMatrix()).inverse()<<std::endl;
   Eigen::MatrixXd temp_output = ((B.asDiagonal().toDenseMatrix()).inverse())*N*(B.asDiagonal().toDenseMatrix());
  
   return Rcpp::wrap(temp_output.colwise().sum());
