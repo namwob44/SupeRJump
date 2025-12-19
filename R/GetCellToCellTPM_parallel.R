@@ -50,7 +50,7 @@ GetCellToCellTPM_parallel<-function(sigma_points,Y,model_fits,sce,n_cores=NULL,c
     Prob_Xt_X0_mat[-starting_point,starting_point]<-Prob_Xt_given_X0
     print(starting_point)
   }
-  stopImplicitCluster()
+  doParallel::stopImplicitCluster()
   
   colnames(Prob_Xt_X0_mat)<-rownames(sigma_points)
   rownames(Prob_Xt_X0_mat)<-rownames(sigma_points)
