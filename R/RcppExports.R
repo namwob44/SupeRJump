@@ -29,7 +29,7 @@
 #' formatDatetime(now + 0:4)    # vectorised
 #' }
 eigenMatMult <- function(A, B) {
-    .Call('_SuperJump_eigenMatMult', PACKAGE = 'SuperJump', A, B)
+    .Call(`_SupeRJump_eigenMatMult`, A, B)
 }
 
 #' Eigen Matrix Multiplication Faster
@@ -60,7 +60,7 @@ eigenMatMult <- function(A, B) {
 #' formatDatetime(now + 0:4)    # vectorised
 #' }
 eigenMapMatMult <- function(A, B) {
-    .Call('_SuperJump_eigenMapMatMult', PACKAGE = 'SuperJump', A, B)
+    .Call(`_SupeRJump_eigenMapMatMult`, A, B)
 }
 
 #' Eigen Matrix Inverse
@@ -91,7 +91,7 @@ eigenMapMatMult <- function(A, B) {
 #' formatDatetime(now + 0:4)    # vectorised
 #' }
 eigenMatInverse <- function(A) {
-    .Call('_SuperJump_eigenMatInverse', PACKAGE = 'SuperJump', A)
+    .Call(`_SupeRJump_eigenMatInverse`, A)
 }
 
 #' Eigen Matrix Inverse and Double Multiply
@@ -122,7 +122,7 @@ eigenMatInverse <- function(A) {
 #' formatDatetime(now + 0:4)    # vectorised
 #' }
 eigenMatXMatXMatINV <- function(A, B, C) {
-    .Call('_SuperJump_eigenMatXMatXMatINV', PACKAGE = 'SuperJump', A, B, C)
+    .Call(`_SupeRJump_eigenMatXMatXMatINV`, A, B, C)
 }
 
 #' Eigen for OutputFlightTime
@@ -153,6 +153,14 @@ eigenMatXMatXMatINV <- function(A, B, C) {
 #' formatDatetime(now + 0:4)    # vectorised
 #' }
 eigenOutputFlightTime <- function(Qmat, Rmat) {
-    .Call('_SuperJump_eigenOutputFlightTime', PACKAGE = 'SuperJump', Qmat, Rmat)
+    .Call(`_SupeRJump_eigenOutputFlightTime`, Qmat, Rmat)
+}
+
+flighttime_sparse_targets_cpp <- function(P, targets, targets_in_rows = TRUE, hit_tol = 1e-14, n_threads = 1L) {
+    .Call(`_SupeRJump_flighttime_sparse_targets_cpp`, P, targets, targets_in_rows, hit_tol, n_threads)
+}
+
+cmfpt_sparse_targets_cpp <- function(P, targets, targets_in_rows = FALSE, hit_tol = 1e-14, interrupt_every = 32L) {
+    .Call(`_SupeRJump_cmfpt_sparse_targets_cpp`, P, targets, targets_in_rows, hit_tol, interrupt_every)
 }
 
