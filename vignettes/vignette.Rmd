@@ -1,0 +1,309 @@
+---
+title: "barcode_seurat_setup"
+author: "Michael Bowman and Bobby Bowman"
+date: "2026-04-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T)
+knitr::opts_chunk$set(eval = FALSE)
+knitr::opts_chunk$set(fig.align='center',fig.height=6.75,fig.width=12)
+knitr::opts_chunk$set(warning = FALSE)
+
+```
+
+# Super Jump Introduction
+
+Welcome to SupeRJump! This package is about supervised pseudotime, Fate estimation through absorbing Markov Chains, and bias cell detection.
+
+```{r library loading,message=FALSE,warning=FALSE}
+library(Seurat)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(tibble)
+library(SupeRJump)
+library(doParallel)
+library(foreach)
+library(compiler)
+enableJIT(3)
+```
+
+# Load in Data
+
+The data we are working on today is from [one of our prior works](https://www.cell.com/cancer-cell/fulltext/S1535-6108(24)00397-0).This dataset explores mutation order for acute myeloid leukemia. We will already start with a Seurat object labeled with cell types.
+
+```{r seurat object loading,message=FALSE,warning=FALSE,include=FALSE}
+seurat_obj <- readRDS("/Users/namwob44/Lab/Core/trajectories/la_maquina_loca/Data/Bobby/Vehicle_vs_treatment/scale_subset_seurat_SCT.rds")
+
+```
+
+```{r seurat object loading 2,message=FALSE,warning=FALSE}
+seurat_obj <- readRDS("./Projects/Data/seurat_object.rds")
+```
+
+
+Alright, we have a lot of cells (over 15,000!) across 5 conditions and 12 mice! Remember, our cell type calls can always be "better," but for today we are working with the 14 cell types above. We aim to address other ways we can predict cells behavior (aside from responses in RNA,TF networks and Geneset enrichment only) before we even run functional assays. To predict behavior or test hypotheses, we rely on strategies from bioinformatic-land called **pseudotime and fates.**
+
+## What is pseudotime?
+
+Let's briefly discuss origins of and rationale for pseudotime. A natural question that arises from single cell analysis is what types of cells are within my heterogenous population? Further, one could ask if there is an initiating cell that acts as a **cell of origin** for the explanation of the data (we likely do not capture this cell in our sampling)? Alternatively, we could ask, is there a **cell of propogation** that connects these heterogenous populations. While asking to discover an initiating event or finding a cell of origin is worthwhile, some bioinformaticians and computer scientists have strived to develop math tools to **numerically order cells** from data only, called **pseudotime**. This work mainly began with embryogenesis data which does truly have a **synchronous order of development.** 
+
+However, directly applying these assumptions and pseudotime discovery to other biological systems is ill advised since many systems we study are chaotic, asynchronous, and stochastically sampled. Further, the prevailing presumption is this is end all be all of biological questions by nominating the **cell of origin.** While these pseudotime tools are helpful, they often lead to costly computations that rediscover first principle phenomena already known to the field. The question we really want is less about finding an initiating state, but rather understanding the question **given a condition what is this cell's fate (or pseudobulk behavior) and what mechanisms are driving it?**
+
+Often in your own analysis you can predict the differentiation path a majority of cells would undergo without even performing analysis. So, rediscovering this of little aid and interest to our bigger biological questions. What you are applying is called **supervised** approach. Let's use a geneset for myeloid differentation (Neutrophil and monocytes), a semi-supervised one that takes into account multiple terminal states (what we have already added to our Seurat object), and a quiescent marker to illustrate the point!
+
+# Prepping for semi-supervised genesets
+
+Here we identify genesets model the cell types of interest. While this approach allows us to select top genes associated with cell types, one could also introduce their own geneset through msigdbr or manually curated list as well.
+
+```{r semisupervised geneset pseudotime,warning=FALSE}
+
+Idents(seurat_obj)<-"cluster_annotations"
+DefaultAssay(seurat_obj)<-"RNA"
+markers.differences<-FindAllMarkers(seurat_obj)
+
+terminal_state_list<-c("pDC","DC_11bn","DC_11bp", "Neutrophil", "DC_Other", "Macrophage")
+reduced_markers<-markers.differences%>%
+  filter(cluster%in%terminal_state_list)
+
+gene_list_from_findallmarkers<-list()
+for(iter in 1:length(terminal_state_list)){
+  gene_list_from_findallmarkers[[iter]]<-markers.differences%>%
+  filter(cluster%in%terminal_state_list)%>%
+    filter(p_val_adj<0.01)%>%
+    filter(avg_log2FC>1)%>%
+    filter(cluster==terminal_state_list[iter])%>%
+    pull(gene)%>%
+    unique
+}
+
+
+```
+
+# Getting pseudotime setup
+
+Once the genesets are established, we use them to establish a semi-supervised pseudotime based on entropic efficiency. Entropic efficiency (the CombinePseudoOrdering function) will rank uncommitted cells as earlier in pseudotime while committed cells will be later. We can access these through an assay called "ModuleScores".
+
+```{r turning pseudotime into an assay,,warning=FALSE}
+seurat_obj<-GetPseudoOrdering(seurat_obj,gene_list_from_findallmarkers,name_of_score =terminal_state_list )
+seurat_obj<-CombinePseudoOrdering(seurat_obj,terminal_state_list)
+
+VlnPlot(seurat_obj,features = "Combined_Ordering",pt.size = 0,log = F,sort = "increasing")+
+  coord_flip()+
+  theme(legend.position = "none")
+
+# Sanity checks: for 
+seurat_obj@meta.data%>%
+  group_by(cluster_annotations)%>%
+  summarize(median(Combined_Ordering))%>%
+  arrange(`median(Combined_Ordering)`)
+
+```
+
+Pseudotime is ok, it more just tells us where are cells currently in a process, which is about what we would expect. It **doesn't** tell us which cells have a higher likelihood, skew or affinity for a particular lineage especially when we are interested in upstream progenitors that have multiple outcomes. We view this semi-supervised pseudotime as hypothesis testing to represent the underlying biology of the system.
+
+## what was that you mentioned about Fates?
+
+**Fates are a probability** that a cell will end up somewhere of interest, often a differentiation state. Be careful though, these can profoundly be impacted by sampling bias of cell states. We can compute these probabilities a number of ways; however, SupeRJump aims to calculate these in a structured machine learning approach that handles discontinuities. We require a 3 step process:
+
+1)  We first fit a Jump-drift-diffusion model with all cells to infer continuous and discontinuous behaviors in latent space (the principle components)
+
+2)  We next use this model to understand the transition probability from one cell to another for each individual sample
+
+3)  We reformulate the problem as an **absorbing Markov Chain** to determine the skewing and biases of cells toward particular cell states. 
+
+
+# Building Jump drift diffusion model
+
+We build a model of cell to cell transitions through the latent space (PC values). We cosine transform the data for cell states of interest given a pseudotime data. This provides more directionality and similarity for cells over traditional euclidean distance in higher dimensional data.
+
+## Preparing Data for Model Fitting
+
+We need to identify a "centroid" for each state cluster which we are often called eigen cells or meta-cells. These provide anchor points for the model fit to attempt to navigate towards with deliberate drift.
+
+```{r transforming PCs for model fitting,warning=FALSE}
+seurat_obj<-CosineTransformPCAData(seurat_obj)
+Y<-GetSinkData(seurat_obj,state_grouping_column_name="cluster_annotations",pseudotime_column_name = "Combined_Ordering")
+
+state_grouping_column_name="cluster_annotations"
+pseudotime_column_name = "Combined_Ordering"
+batch_correction_column_name="Sample_names"
+```
+
+## Performing Model Fit
+
+We now will produce a model fit for each state. This is dependent on the size of PCs used, the number of cell states, so consider using 30 PCs rather than this example with 50. This step can take a 15-45min based on cell number and number of states. After this step it would be recommended to save the variable and use this as a stopping point.
+
+```{r performing model fit,warning=FALSE}
+Prob_reduced<-Reduced_Jump_Prob_fast(seurat_obj,
+                                     Total_Eigen_Data = Y,
+                                     start_point = 1,
+                                     state_grouping_column_name = state_grouping_column_name,
+                                     pseudotime_column_name = pseudotime_column_name,
+                                     batch_correction_column_name = batch_correction_column_name)
+```
+
+```{r Saving the model fit, eval=FALSE, include=FALSE}
+saveRDS(Prob_reduced,"~/Lab/Core/trajectories/la_maquina_loca/Latest_verison_of_SuperJump_from_macStudio/model_fit.rds")
+```
+
+### Finding Jump Programs and performing JumpROPE
+
+Once models are developed, we can identify which celltype-PC pairings have jumps associated. We can then also find the associated genesets involved in the loadings for those PCs.
+
+We first identify jump programs which gives us a list. It contains a dataframe of which celltype-PC pairing there is, and another one of the associated genes to explore. Afterwards JumpROPE performs gene ontology to identify what processes the positive and negative feature loadings belong.
+
+```{r Identifying jump programs and performing gene ontology,message=FALSE,warning=FALSE}
+library(topGO)
+library(GO.db)
+library(org.Mm.eg.db)
+jump_ID_list<-GetJumpProgramFeatures(seurat_obj,Y,Prob_reduced,
+                                     state_grouping_column_name = state_grouping_column_name,
+                                     pseudotime_column_name = pseudotime_column_name,
+                                     batch_correction_column_name = batch_correction_column_name)
+
+GO_lists<-JumpROPE(seurat_obj,jump_ID_list)
+
+
+```
+
+# Obtaining Transition Probability Matrix (TPM)
+
+On to the next analysis which is more common strategy that JumpROPE. Our strategy builds off of prior diffusion map approaches such as destiny. We will take the model fits, and identify the probability of a cell transitioning to another one. Building this network is then put into the seurat@graphs as "TPM"
+
+Please be advised, that setting cores beyond half your available cores is ill-advised especially for larger cell-cell networks. While we allow you to have maximum control over this, it is likely to crash your computer.
+
+This is the longest part of the process. It takes about 1hour for 12 samples across ~20000 cells. We would recommend saving your seurat object after this point as many down stream approaches are fast after this point but rely on this graph.
+
+```{r Building a TPM}
+
+t1<-Sys.time()
+seurat_obj<-GetCellToCellTPM_fast(seurat_obj,Y,Prob_reduced,state_grouping_column_name="cluster_annotations",pseudotime_column_name = "Combined_Ordering",batch_correction_column_name="Sample_names",n_cores = 4,cell_indices_to_use = NULL,order = 5,eps = 1e-300,normalize_rows = TRUE,verbose = TRUE)
+t2<-Sys.time()
+print(t2-t1)
+
+```
+
+```{r saving and loading seurat, include=FALSE}
+saveRDS(seurat_obj,file = "~/Lab/Core/trajectories/la_maquina_loca/Latest_verison_of_SuperJump_from_macStudio/seurat_post_TPM.rds")
+
+seurat_obj<-readRDS(file = "~/Lab/Core/trajectories/la_maquina_loca/Latest_verison_of_SuperJump_from_macStudio/seurat_post_TPM.rds")
+
+```
+
+# Obtaining the absorbing states
+
+This area of research is an open problem in determining the absorbing cell states. We offer a few separate practical approaches to choose based on needs: 
+
+1) using pseudotime and gene expression (find cells that are furthest along and most self-identified as the cluster, fast) 
+2) using Conditional Mean First Passage Time (CMFPT) which ensures we get the most isolated/furthest cells within the network from a proposed cell origin cluster (very slow to calculate CMFPT, based on the overall cell-cell network design which has attractive properties) 
+
+3) we also allow custom addition of cell names directly.
+
+## custom cell selection
+The example below is to demonstrate how to load in your own cell names. It is not recommended to randomly sample names like is shown. This is merely a place holder for your own methods and approaches to identify absorbing state names. This method will take priority and override any other strategy below.
+
+```{r custom absorbing state selection}
+
+randomly_selected_cell_names<-sample(colnames(subset(seurat_obj,subset= cluster_annotations%in%terminal_state_list)),200,replace = F)
+seurat_obj<-GetAutomaticAbsorbingCellAssignment(seurat_obj,sink_cell_names = randomly_selected_cell_names)
+
+```
+
+## using markers for selection
+This is the most common route and choice. We re-use the markers data.frame used for the pseudotime inference to find the best balance between speed and reasonable choice selection.
+
+```{r automatic cell types through marker expression}
+
+seurat_obj<-GetAutomaticAbsorbingCellAssignment(seurat_obj,markers_df = markers.differences,mode = "markers",
+                                                 state_grouping_column_name = state_grouping_column_name,
+                                                 terminal_state_list = terminal_state_list,
+                                                 pseudotime_column_name = pseudotime_column_name,
+                                                 batch_correction_column_name = batch_correction_column_name)
+
+```
+
+## Getting CMFPT and absorbing states with this network
+
+This requires 1 function to be run first called Conditional Mean First Passage Time(CMFPT). This function can take a while to run, usually longer than getting TPM because it iterates over cell within a batch to identify average time we would visit a cell. It uses a closed-form solution to solve the Monte Carlo problem.
+
+```{r using CMFPT to get absorbing states}
+
+
+seurat_obj<-GetBatchCorrectedCMFPT(seurat_obj = seurat_obj,state_grouping_column_name = state_grouping_column_name,batch_correction_column_name = batch_correction_column_name,old_flag = F,targets_in_rows = T,n_threads = 4)
+
+# then we just need to switch
+seurat_obj3<-GetAutomaticAbsorbingCellAssignment(seurat_obj,markers_df = NULL,mode = "CMFPT",
+                                                 state_grouping_column_name = state_grouping_column_name,
+                                                 terminal_state_list = terminal_state_list,
+                                                 pseudotime_column_name = pseudotime_column_name,
+                                                 batch_correction_column_name = batch_correction_column_name)
+
+
+```
+
+
+# Calculating Fate Assays, Visitation graphs
+The main workhorse function to solving Fates. This function will calculate the probability of cells navigating toward their respective absorbing states. probability to absorbing states is stored in seurat@misc while the lineage specified ones are in a new assay. The batch corrected values are in scale.data and recommended to be used. visitation is stored as a graph.
+
+```{r calculating AMC fates,warning=FALSE}
+
+seurat_obj2<-GetFateMatrixAndMetrics(seurat_obj2,state_grouping_column_name="cluster_annotations",
+                                     pseudotime_column_name="Combined_Ordering",
+                                     batch_correction_column_name="Sample_names",
+                                     absorbing_state_column_name="absorbing_states")
+
+```
+
+# getting Membership Assay
+
+This is necessary for doing biased cell detection as well as determining the Weighted Destination Time (WDT). We obtain the soft classification of cells to find the membership toward each cell state. This will create a new assay called Membership.
+
+```{r getting membership}
+seurat_obj2<-GetMembership(seurat_obj2,state_grouping_column_name="cluster_annotations")
+```
+
+# Getting the biased cells
+While fates allow for a way to understand skewing toward a lineage, they are heavily impacted by population imbalance which forces gating strategies and normalization. We want to identify if there are cells that are individually biased for one lineage over another within a single population. We are interested in what makes these cells different from one another. To do this, we built functions that take lineage fates and the likelihood a cell remains it's own cell type to determine whether they are unipotent or multipotent for a specific lineage. This will create a new assay called bias_scores. The bias_scores provide a continuous value to assess if cells are statistically outliers compared to the pseudobulk of cells within a population. The scale.data is the data to use for continous measures, while our binary classification is in seurat_obj@assays$bias_scores@misc classification .
+
+We would recommend using the calls to build a figure called an **upset plot.** This figure let's us make a venn diagram like figure with more than 2 intersections. If you are familiar with our **scDNA clonographs,** this plot is similar in spirit. This plot tells us how many cells are biased for cases, accounting for intersections and exclusions.
+ 
+
+```{r getting biased cell assays}
+
+seurat_obj<-GetAllClassifiedPoisedCells(seurat_obj,state_grouping_column_name="cluster_annotations",lineages_to_compare=c("Neutrophil","pDC","DC_11bn","DC_11bp","Macrophage"))
+
+```
+
+# Getting Weighted Destination Time
+This is a new measure of understanding preferential flow of cells toward intermediate states aside from looking at fates and visitation. This measure informs whether cells of interest are uniquely adept at visiting certain populations over others. Individual cells toward lineages are in an assay called WDT. While the preferences of other group variables with the example below are placed in seurat_obj@misc
+
+We provide a way to compare different groupings enrichment by comparing the preferences to a null distribution.
+
+```{r getting WDT assays}
+
+seurat_obj<-GetWeightedDestinationTime(seurat_obj = seurat_obj,preference_lineage_column = "Group",enrichment_flag = T)
+
+```
+
+# Getting Transcription Factor Inference
+
+This function is a condensed approach to obtain a TF assay for seurat object. It relies on decoupleR to infer transcription factor activity from a database of known interactions. For more info, please look into decoupleR's package.
+
+```{r getting TF assay}
+
+seurat_obj<-TFWrapper(seurat_obj,organism = "mouse",model = "TF")
+
+```
+
+# Transcription Factor and Fate modeling.
+We correlate Fates with transcription factor with a multi-variate linear model. This provides a data frame with weighting of the linear model, adjusted p-value and sign(weighting)*(-log10(p-value)).
+
+```{r getting TF-Fate linear modeling}
+
+TF_fate_model_df<-GetFateTFModel(seurat_obj,lineages_to_use=c("Neutrophil","pDC","DC_11bn","DC_11bp","Macrophage"))
+
+```
+
