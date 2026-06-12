@@ -235,7 +235,7 @@ This requires 1 function to be run first called Conditional Mean First Passage T
 seurat_obj<-GetBatchCorrectedCMFPT(seurat_obj = seurat_obj,state_grouping_column_name = state_grouping_column_name,batch_correction_column_name = batch_correction_column_name,old_flag = F,targets_in_rows = T,n_threads = 4)
 
 # then we just need to switch
-seurat_obj3<-GetAutomaticAbsorbingCellAssignment(seurat_obj,markers_df = NULL,mode = "CMFPT",
+seurat_obj<-GetAutomaticAbsorbingCellAssignment(seurat_obj,markers_df = NULL,mode = "CMFPT",
                                                  state_grouping_column_name = state_grouping_column_name,
                                                  terminal_state_list = terminal_state_list,
                                                  pseudotime_column_name = pseudotime_column_name,
@@ -250,7 +250,7 @@ The main workhorse function to solving Fates. This function will calculate the p
 
 ```{r calculating AMC fates,warning=FALSE}
 
-seurat_obj2<-GetFateMatrixAndMetrics(seurat_obj2,state_grouping_column_name="cluster_annotations",
+seurat_obj<-GetFateMatrixAndMetrics(seurat_obj,state_grouping_column_name="cluster_annotations",
                                      pseudotime_column_name="Combined_Ordering",
                                      batch_correction_column_name="Sample_names",
                                      absorbing_state_column_name="absorbing_states")
@@ -262,7 +262,7 @@ seurat_obj2<-GetFateMatrixAndMetrics(seurat_obj2,state_grouping_column_name="clu
 This is necessary for doing biased cell detection as well as determining the Weighted Destination Time (WDT). We obtain the soft classification of cells to find the membership toward each cell state. This will create a new assay called Membership.
 
 ```{r getting membership}
-seurat_obj2<-GetMembership(seurat_obj2,state_grouping_column_name="cluster_annotations")
+seurat_obj<-GetMembership(seurat_obj,state_grouping_column_name="cluster_annotations")
 ```
 
 # Getting the biased cells
