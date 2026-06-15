@@ -26,7 +26,13 @@ Imports: Rcpp (>= 1.0.13-1),
 	 tidyr,
 	 wordspace,
 	 stats,
-	 magrittr
+	 magrittr,
+         GO.db,
+         Matrix,
+         OmnipathR,
+         org.Hs.eg.db,
+         org.Mm.eg.db,
+         topGO
 LinkingTo: Rcpp, RcppEigen, RcppParallel
 Encoding: UTF-8
 LazyData: true
