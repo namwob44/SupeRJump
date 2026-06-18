@@ -32,11 +32,11 @@ enableJIT(3)
 
 # Load in Data
 
-The data we are working on today is from [one of our prior works](https://www.cell.com/cancer-cell/fulltext/S1535-6108(24)00397-0).This dataset explores mutation order for acute myeloid leukemia. We will already start with a Seurat object labeled with cell types.
+The data we are working on today is from [one of our prior works](https://www.cell.com/cancer-cell/fulltext/S1535-6108(24)00397-0).This dataset explores mutation order for acute myeloid leukemia. We will already start with a Seurat object labeled with cell types. We provide a link to download the seurat object at [this googledrive link](https://drive.google.com/drive/folders/1xb-wKcAoJxsIBXGXyxoW0IRLb9YZbWkG?usp=sharing).
 
 
 ```{r seurat object loading 2,message=FALSE,warning=FALSE}
-seurat_obj <- readRDS(system.file("extdata","seurat_obj.rds","SupeRJump"))
+seurat_obj <- readRDS("./Data/seurat_obj.rds")
 ```
 
 
