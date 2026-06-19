@@ -378,8 +378,9 @@ enableJIT(3)</code></pre>
 <p>The data we are working on today is from <a href="https://www.cell.com/cancer-cell/fulltext/S1535-6108(24)00397-0">one
 of our prior works</a>.This dataset explores mutation order for acute
 myeloid leukemia. We will already start with a Seurat object labeled
-with cell types.</p>
-<pre class="r"><code>seurat_obj &lt;- readRDS(&quot;./Projects/Data/seurat_object.rds&quot;)</code></pre>
+with cell types. We provide a link to download the seurat object at <a href="https://drive.google.com/drive/folders/1xb-wKcAoJxsIBXGXyxoW0IRLb9YZbWkG?usp=sharing">this
+googledrive link</a>.</p>
+<pre class="r"><code>seurat_obj &lt;- readRDS(&quot;./Data/seurat_obj.rds&quot;)</code></pre>
 <p>Alright, we have a lot of cells (over 15,000!) across 5 conditions
 and 12 mice! Remember, our cell type calls can always be “better,” but
 for today we are working with the 14 cell types above. We aim to address
@@ -617,7 +618,7 @@ closed-form solution to solve the Monte Carlo problem.</p>
 <pre class="r"><code>seurat_obj&lt;-GetBatchCorrectedCMFPT(seurat_obj = seurat_obj,state_grouping_column_name = state_grouping_column_name,batch_correction_column_name = batch_correction_column_name,old_flag = F,targets_in_rows = T,n_threads = 4)
 
 # then we just need to switch
-seurat_obj3&lt;-GetAutomaticAbsorbingCellAssignment(seurat_obj,markers_df = NULL,mode = &quot;CMFPT&quot;,
+seurat_obj&lt;-GetAutomaticAbsorbingCellAssignment(seurat_obj,markers_df = NULL,mode = &quot;CMFPT&quot;,
                                                  state_grouping_column_name = state_grouping_column_name,
                                                  terminal_state_list = terminal_state_list,
                                                  pseudotime_column_name = pseudotime_column_name,
@@ -632,7 +633,7 @@ absorbing states. probability to absorbing states is stored in <a href="mailto:s
 lineage specified ones are in a new assay. The batch corrected values
 are in scale.data and recommended to be used. visitation is stored as a
 graph.</p>
-<pre class="r"><code>seurat_obj2&lt;-GetFateMatrixAndMetrics(seurat_obj2,state_grouping_column_name=&quot;cluster_annotations&quot;,
+<pre class="r"><code>seurat_obj&lt;-GetFateMatrixAndMetrics(seurat_obj,state_grouping_column_name=&quot;cluster_annotations&quot;,
                                      pseudotime_column_name=&quot;Combined_Ordering&quot;,
                                      batch_correction_column_name=&quot;Sample_names&quot;,
                                      absorbing_state_column_name=&quot;absorbing_states&quot;)</code></pre>
@@ -643,7 +644,7 @@ graph.</p>
 determining the Weighted Destination Time (WDT). We obtain the soft
 classification of cells to find the membership toward each cell state.
 This will create a new assay called Membership.</p>
-<pre class="r"><code>seurat_obj2&lt;-GetMembership(seurat_obj2,state_grouping_column_name=&quot;cluster_annotations&quot;)</code></pre>
+<pre class="r"><code>seurat_obj&lt;-GetMembership(seurat_obj,state_grouping_column_name=&quot;cluster_annotations&quot;)</code></pre>
 </div>
 <div id="getting-the-biased-cells" class="section level1">
 <h1>Getting the biased cells</h1>
