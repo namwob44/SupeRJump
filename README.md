@@ -40,6 +40,8 @@ Then load the package:
 library(SupeRJump)
 ```
 
+You can access and download the opensource seurat object we use in the vignette at [this googledrive link](https://drive.google.com/drive/folders/1xb-wKcAoJxsIBXGXyxoW0IRLb9YZbWkG?usp=sharing). The data we are working on today is from [one of our prior works](https://www.cell.com/cancer-cell/fulltext/S1535-6108(24)00397-0). This dataset explores mutation order for acute myeloid leukemia. We will already start with a Seurat object labeled with cell types.
+
 ---
 
 ## Quick Start and Example Workflow
@@ -50,7 +52,7 @@ Here is an example walkthrough of generating the core of SupeRJump:
  library(SupeRJump)
 
 # Example input
-seurat_obj <- readRDS("./Projects/Data/seurat_object.rds")
+seurat_obj <- readRDS("./Data/seurat_object.rds")
 
 # Getting Semi-supervised Signatures for Pseudotime
 Idents(seurat_obj)<-"cluster_annotations"
