@@ -401,7 +401,7 @@ Individual_Batch_TPM <- function(seurat_obj,Y,model_fits,state_grouping_column_n
     cl <- parallel::makeCluster(n_cores)
     on.exit(parallel::stopCluster(cl), add = TRUE)
     parallel::clusterEvalQ(cl, {
-      library(SuperJump)
+      library(SupeRJump)
       NULL
     })
     parallel::clusterExport(
