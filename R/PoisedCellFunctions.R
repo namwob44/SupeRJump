@@ -19,15 +19,15 @@ GetAllClassifiedPoisedCells<-function(seurat_obj,state_grouping_column_name,line
 
   # we need to make a data_input which contains state_grouping_column, Membership assay and lineage fate assay too.
 
-  data_input <- t(Seurat::GetAssayData(seurat_obj2,assay = "Membership"))%>%
+  data_input <- t(Seurat::GetAssayData(seurat_obj,assay = "Membership"))%>%
     as.data.frame%>%
     dplyr::rename_with(~paste0(.,"_membership"))%>%
     tibble::rownames_to_column(var="row_names")%>%
     dplyr::inner_join(
-      t(Seurat::GetAssayData(seurat_obj2,assay="lineage_fates",slot="scale.data"))%>%as.data.frame%>%
+      t(Seurat::GetAssayData(seurat_obj,assay="lineage_fates",slot="scale.data"))%>%as.data.frame%>%
         tibble::rownames_to_column(var="row_names"),
       by="row_names",suffix=c("_membership",""))%>%
-    dplyr::inner_join(Seurat::FetchData(seurat_obj2,vars=c(state_grouping_column_name))%>%
+    dplyr::inner_join(Seurat::FetchData(seurat_obj,vars=c(state_grouping_column_name))%>%
                         tibble::rownames_to_column(var="row_names"),
     by="row_names")%>%
     tibble::column_to_rownames(var="row_names")
