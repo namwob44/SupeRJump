@@ -24,7 +24,7 @@ GetAllClassifiedPoisedCells<-function(seurat_obj,state_grouping_column_name,line
     dplyr::rename_with(~paste0(.,"_membership"))%>%
     tibble::rownames_to_column(var="row_names")%>%
     dplyr::inner_join(
-      t(Seurat::GetAssayData(seurat_obj,assay="lineage_fates",slot="scale.data"))%>%as.data.frame%>%
+      t(Seurat::GetAssayData(seurat_obj,assay="lineage_fates",layer="scale.data"))%>%as.data.frame%>%
         tibble::rownames_to_column(var="row_names"),
       by="row_names",suffix=c("_membership",""))%>%
     dplyr::inner_join(Seurat::FetchData(seurat_obj,vars=c(state_grouping_column_name))%>%
