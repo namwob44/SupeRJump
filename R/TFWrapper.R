@@ -89,7 +89,7 @@ GetFateTFModel<-function(seurat_obj,lineages_to_use){
   temp_df<-t(Seurat::GetAssayData(seurat_obj,assay = "tfsulm"))%>%
     as.data.frame%>%
     tibble::rownames_to_column(var="row_names")%>%
-    dplyr::inner_join(t(Seurat::GetAssayData(seurat_obj,assay = "lineage_fates",slot="scale.data"))%>%
+    dplyr::inner_join(t(Seurat::GetAssayData(seurat_obj,assay = "lineage_fates",layer="scale.data"))%>%
                         as.data.frame%>%
                         tibble::rownames_to_column(var="row_names"),
                       by="row_names")
