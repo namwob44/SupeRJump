@@ -142,7 +142,7 @@ Prob_reduced<-Reduced_Jump_Prob_fast(seurat_obj,
 ```
 
 ```{r Saving the model fit, eval=FALSE, include=FALSE}
-saveRDS(Prob_reduced,"~/Lab/Core/trajectories/la_maquina_loca/Latest_verison_of_SuperJump_from_macStudio/model_fit.rds")
+saveRDS(Prob_reduced,"./model_fit.rds")
 ```
 
 ### Finding Jump Programs and performing JumpROPE
@@ -183,9 +183,9 @@ print(t2-t1)
 ```
 
 ```{r saving and loading seurat, include=FALSE}
-saveRDS(seurat_obj,file = "~/Lab/Core/trajectories/la_maquina_loca/Latest_verison_of_SuperJump_from_macStudio/seurat_post_TPM.rds")
+saveRDS(seurat_obj,file = "./seurat_post_TPM.rds")
 
-seurat_obj<-readRDS(file = "~/Lab/Core/trajectories/la_maquina_loca/Latest_verison_of_SuperJump_from_macStudio/seurat_post_TPM.rds")
+seurat_obj<-readRDS(file = "./seurat_post_TPM.rds")
 
 ```
 
