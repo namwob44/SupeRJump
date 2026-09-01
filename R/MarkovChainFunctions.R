@@ -230,7 +230,7 @@ GetCellLineageFateMatrix<-function(Bmat,seurat_obj,absorbing_state_column_name,s
 #'
 #' @examples \dontrun{seurat_obj<-GetMembership(seurat_obj,state_grouping_column_name="custom_cell_classes_fine")}
 GetMembership<-function(seurat_obj,state_grouping_column_name){
-  raw_data_to_test<-Seurat::Embeddings(seurat_obj, "pca") %>% as.data.frame # cells x PCs
+  raw_data_to_test<-Seurat::Embeddings(seurat_obj, "transformed_pca") %>% as.data.frame # cells x PCs
   added_column <- Seurat::FetchData(seurat_obj,vars = c(state_grouping_column_name))
   raw_data_to_test<- raw_data_to_test%>%
     tibble::rownames_to_column(var = "row_names")%>%
