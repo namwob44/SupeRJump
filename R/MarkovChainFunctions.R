@@ -756,7 +756,7 @@ GetWeightedDestinationTime<-function(seurat_obj,preference_lineage_column=NULL, 
   WDT_nk <- A_bar %*% memcheck_var[all_cell_rownames,] %*% DM_inv
 
   WDT_assay<-Seurat::CreateAssayObject(data = t(WDT_nk))
-  seurat_obj@assays[["WDT"]] <- WDT_assay
+  seurat_obj[["WDT"]] <- WDT_assay
 
   if(!is.null(preference_lineage_column)){
 
