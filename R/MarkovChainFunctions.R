@@ -257,6 +257,7 @@ GetMembership<-function(seurat_obj,state_grouping_column_name){
   }
   colnames(membership_raw)<-Mean_mus_clust[[state_grouping_column_name]]
   rownames(membership_raw)<-rownames(raw_data_to_test)
+  membership_raw[membership_raw<1e-5]=0  
   membership_norm <-membership_raw/Matrix::rowSums(membership_raw)
   module_assay <- Seurat::CreateAssayObject(data = t(membership_norm))
   seurat_obj[["Membership"]] <- module_assay
