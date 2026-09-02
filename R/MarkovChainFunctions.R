@@ -742,10 +742,10 @@ BatchCorrectGraph<-function(graph,meta,state_grouping_column_name,batch_correcti
 GetWeightedDestinationTime<-function(seurat_obj,preference_lineage_column=NULL, enrichment_flag=T){
 
 
-  all_cell_rownames <- intersect(rownames(seurat_obj@graphs[["visitation"]]),rownames(seurat_obj@graphs[["CMFPT"]]))
-  all_cell_colnames <- intersect(colnames(seurat_obj@graphs[["visitation"]]),colnames(seurat_obj@graphs[["CMFPT"]]))
-
-  A<-as.matrix(seurat_obj@graphs[["visitation"]][all_cell_rownames,all_cell_colnames])/(as.matrix(seurat_obj@graphs[["CMFPT"]][all_cell_rownames,all_cell_colnames]) +1e-6)
+  all_cell_rownames <- intersect(names(which(Matrix::rowSums(seurat_obj@graphs[["visitation"]])!=0)),rownames(seurat_obj@graphs[["CMFPT"]]))
+  all_cell_colnames <- intersect(names(which(Matrix::colSums(seurat_obj@graphs[["visitation"]])!=0)),colnames(seurat_obj@graphs[["CMFPT"]]))
+    
+  A<-as.matrix(seurat_obj@graphs[["visitation"]][all_cell_rownames,all_cell_row_names])/(as.matrix(seurat_obj@graphs[["CMFPT"]][all_cell_rownames,all_cell_rownames]) +1e-6)
   A_bar <- A/rowSums(A)
   A_bar[!is.finite(A_bar)] <- 0
 
@@ -761,7 +761,7 @@ GetWeightedDestinationTime<-function(seurat_obj,preference_lineage_column=NULL, 
 
   if(!is.null(preference_lineage_column)){
 
-    meta <- Seurat::FetchData(seurat_obj,vars = c(preference_lineage_column))
+    meta <- Seurat::FetchData(seurat_obj,vars = c(preference_lineage_column),clean="none")
     G_mat<-meta%>%
       tibble::rownames_to_column(var="current_state")%>%
       dplyr::select(current_state,.data[[preference_lineage_column]])%>%
