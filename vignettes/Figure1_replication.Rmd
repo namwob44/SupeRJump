@@ -1,0 +1,148 @@
+---
+title: "Figure1_replication"
+author: "Michael Bowman and Bobby Bowman"
+date: "2026-09-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+library(Seurat)
+library(SupeRJump)
+library(dplyr)
+library(ggplot2)
+
+```
+
+
+
+```{r}
+load(system.file(paste0('data/Human_bone_marrow_combined.rDa'), package = 'SupeRJump'))
+
+```
+
+
+# Replicating Figure 1b
+
+## Figure 1b left panel
+Palantir pseudotime from cellrank2
+```{r figure 1b left plot}
+ggplot(seurat_obj@meta.data%>%
+         filter(Jumptime_to_absorb!=0),aes(y=palantir_pseudotime,x=clusters,fill=clusters))+
+  geom_violin(alpha=0.5)+
+  scale_fill_manual(values = pals::kelly(n=11)[-1])+
+  ylab("Palantir Pseudotime")+
+  xlab("")+
+  ggpubr::theme_classic2(base_size = 24)+
+  theme(axis.text.x = element_text(angle=45,hjust=1,vjust=1))+
+  theme(legend.position = "none",axis.title.x = element_blank())
+ggsave(filename = "./Figures/palantir_violin_vs_setty.pdf",plot=last_plot(),width=7.5,height=4.5,dpi=320)
+
+
+
+```
+
+## Figure 1b middle panel
+SupeRJump steps to absorption vs Palantir pseudotime from cellrank2
+
+```{r figure 1b middle plot}
+r <- seurat_obj@meta.data%>%
+  filter(!is.na(Jumptime_to_absorb))%>%
+  summarise(cor(Jumptime_to_absorb,palantir_pseudotime))%>%round(digits = 3)
+ggplot(seurat_obj@meta.data%>%
+         filter(!is.na(Jumptime_to_absorb)),aes(x=Jumptime_to_absorb,y=palantir_pseudotime,color=clusters))+
+  geom_point(alpha=0.5)+
+  geom_smooth(method="lm", col="black")+  annotate("text", x=68, y=0.9, size=6.4, label=paste0("r = ", r), hjust=0) +
+  scale_color_manual(values = pals::kelly(n=11)[-1])+
+  ylab("Palantir Pseudotime")+
+  xlab("Steps until Absorption\n SupeRJump")+
+  ggpubr::theme_classic2(base_size = 24)+ylim(c(0,1))+theme(legend.position = "none")
+ggsave(filename = "./Figures/absorption_steps_vs_PT_ours_manu_setty_no_legend.pdf",plot=last_plot(),width=7.5,height=4.5,dpi=320)
+
+
+```
+
+## Figure 1b right panel
+Diffusion steps to absorption vs Palantir pseudotime from cellrank2
+```{r plotting figure 1b right panel}
+r2 <- seurat_obj@meta.data%>%
+  filter(!is.na(Jumptime_to_absorb))%>%
+  summarise(cor(CR2_to_absorb,palantir_pseudotime))%>%round(digits = 3)
+ggplot(seurat_obj@meta.data%>%
+         filter(!is.na(Jumptime_to_absorb)),aes(x=CR2_to_absorb,y=palantir_pseudotime,color=clusters))+ 
+  geom_point(alpha=0.5)+
+  geom_smooth(method="lm", col="black")+  annotate("text", x=0, y=0.125,size=6.4, label=paste0("r = ", r2), hjust=0) +
+  scale_color_manual(values = pals::kelly(n=11)[-1])+
+  ylab("Palantir Pseudotime")+
+  xlab("Steps until Absorption\n Diffusion")+
+  ggpubr::theme_classic2(base_size = 24)+ylim(c(0,1))+theme(legend.position = "none")
+ggsave(filename = "./Figures/absorption_steps_vs_PT_cr2_manu_setty_no_legend.pdf",plot=last_plot(),width=7.5,height=4.5,dpi=320)
+
+
+
+```
+
+# Replicating Figure 1c
+
+## Figure 1c left panel
+```{r plotting figure 1c left panel}
+ggplot(seurat_obj@meta.data%>%
+        filter(Jumptime_to_absorb!=0),aes(y=Jumptime_to_absorb,x=clusters,fill=clusters))+
+  geom_violin(alpha=0.5)+scale_fill_manual(values = pals::kelly(n=11)[-1])+
+  ylab("Steps Until Absorption\n SupeRJump")+
+  xlab("")+
+  ggpubr::theme_classic2(base_size = 24)+
+  theme(axis.text.x = element_text(angle=45,hjust=1,vjust=1))+
+  theme(legend.position = "none",axis.title.x = element_blank())
+ggsave(filename = "./Figures/timestep_violin_our_manu_setty_no_legend.pdf",plot=last_plot(),width=7.5,height=4.5,dpi=320)
+
+
+```
+
+## Figure 1c middle panel 
+```{r plotting figure 1c middle panel}
+ggplot(seurat_obj@meta.data%>%
+         filter(Jumptime_to_absorb!=0),aes(y=CR2_to_absorb,x=clusters,fill=clusters))+
+  geom_violin(alpha=0.5)+scale_fill_manual(values = pals::kelly(n=11)[-1])+
+  ylab("Steps Until Absorption\n Diffusion")+
+  xlab("")+
+  ggpubr::theme_classic2(base_size = 24)+
+  theme(axis.text.x = element_text(angle=45,hjust=1,vjust=1))+
+  theme(legend.position = "none",axis.title.x = element_blank())
+ggsave(filename = "./Figures/timestep_violin_cr2_manu_setty_no_legend.pdf",plot=last_plot(),width=7.5,height=4.5,dpi=320)
+
+
+
+```
+
+## Figure 1c right panel
+
+```{r plotting figure 1c right panel}
+r1 <- seurat_obj@meta.data%>%
+  filter(!is.na(Jumptime_to_absorb))%>%
+  select(Jumptime_to_absorb,CR2_to_absorb)%>%
+  summarise(stats::cor(x=CR2_to_absorb,y=Jumptime_to_absorb,use = "complete.obs"))%>%
+  round(digits = 3)
+
+ggplot(seurat_obj@meta.data%>%
+         filter(!is.na(CR2_to_absorb)),aes(y=CR2_to_absorb,x=Jumptime_to_absorb,color=clusters))+
+  geom_point(alpha=0.5)+
+  geom_smooth(method="lm", col="black")+  annotate("text", x=45, y=150,size=6.4, label=paste0("r = ", r1), hjust=0) +
+  scale_color_manual(values = pals::kelly(n=11)[-1])+
+  ylab("Steps until Absorption\n Diffusion")+
+  xlab("Steps until Absorption\n SupeRJump")+
+  ggpubr::theme_classic2(base_size = 24)+theme(legend.position = "none")
+
+ggsave(filename = "./Figures/absorption_steps_ours_vs_cr2_manu_setty_no_legend.pdf",plot=last_plot(),width=7.5,height=4.5,dpi=320)
+
+
+
+```
+
+
+

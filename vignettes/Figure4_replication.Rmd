@@ -1,0 +1,302 @@
+---
+title: "Figure 4 replication"
+author: "Michael Bowman and Bobby Bowman"
+date: "2026-09-03"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(SupeRJump)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(Seurat)
+library(ggrepel)  
+library(RColorBrewer)
+library(ggrastr)
+```
+
+# load data
+
+```{r}
+load(system.file(paste0('data/healthy_seurat_object.rDa'), package = 'SupeRJump'))
+
+```
+
+
+
+# Figure 4A
+
+```{r}
+
+bias_cell_assay <- Seurat::GetAssay(object = subset(seurat_obj,subset = Cluster.Assignment=="GMP"),assay="bias_scores")
+
+order_by_neutrophil_lineage<-GetAssay(object = subset(seurat_obj,subset = Cluster.Assignment=="GMP"),assay="lineage_fates")
+
+
+outlier_cutoff_val_Neu<-quantile(bias_cell_assay@scale.data["Neutrophils",])[4]+1.5*IQR(bias_cell_assay@scale.data["Neutrophils",])
+outlier_cutoff_val_Neu_not_hubered<-quantile(bias_cell_assay@data["Neutrophils",])[4]+1.5*IQR(bias_cell_assay@data["Neutrophils",])
+outlier_cutoff_val_Mono<-quantile(bias_cell_assay@scale.data["Monocytes",])[4]+1.5*IQR(bias_cell_assay@scale.data["Monocytes",])
+
+bias_cell_plotting<-data.frame(Bias_scores = bias_cell_assay@scale.data["Neutrophils",colnames(bias_cell_assay)],
+             outlier_scores = bias_cell_assay@data["Neutrophils",colnames(bias_cell_assay)],
+             Biased_Monocytes = bias_cell_assay@misc[["classification"]]["Monocytes",colnames(bias_cell_assay)],
+             Biased_Neutrophils = bias_cell_assay@misc[["classification"]]["Neutrophils",colnames(bias_cell_assay)],
+             Neutrophil_fate=order_by_neutrophil_lineage@scale.data["Neutrophils",colnames(bias_cell_assay)])
+
+
+bias_cell_plotting%>%
+    mutate(color_group=case_when(
+      (Biased_Monocytes=="biased"&Biased_Neutrophils=="not")~"Mono",
+      (Biased_Monocytes=="not"&Biased_Neutrophils=="biased")~"Neu",
+      (Biased_Monocytes=="biased"&Biased_Neutrophils=="biased")~"Both",
+      (Biased_Monocytes=="not"&Biased_Neutrophils=="not")~"Not",
+    ))%>%
+  arrange(Neutrophil_fate)%>%
+  ggplot(aes(x=Bias_scores,y=outlier_scores,color=color_group))+
+  geom_point(alpha=0.4)+
+  theme_classic(base_size=24)+
+  geom_vline(xintercept = outlier_cutoff_val_Neu,linetype=2)+
+  geom_hline(yintercept = outlier_cutoff_val_Neu_not_hubered,linetype=2)+
+  xlab("Neutrophil Bias Score")+
+  ylab("Neutrophil Outlier Score")+
+  guides(color=guide_legend(title=""))+
+  theme(legend.position = "none")+
+  scale_color_manual(values=c("Neu"=pals::kelly(n=14)[12],
+                              "Mono"=pals::kelly(n=14)[11],
+                              "Not"=pals::kelly(n=14)[4],
+                              "Both"=pals::brewer.greens(n=5)[4]))
+
+
+ggsave(filename="./Figures/GMP_neu_bias_vs_outlier_with_cutoffs.pdf",width=7.5,height = 4.5,dpi = 320)
+
+
+```
+
+
+
+# Figure 4B
+
+```{r}
+
+bias_cell_plotting<-data.frame(Bias_scores_Neu = bias_cell_assay@scale.data["Neutrophils",],
+                               Bias_scores_Mono = bias_cell_assay@scale.data["Monocytes",],
+             Biased_Monocytes = bias_cell_assay@misc[["classification"]]["Monocytes",colnames(bias_cell_assay)],
+             Biased_Neutrophils = bias_cell_assay@misc[["classification"]]["Neutrophils",colnames(bias_cell_assay)])
+
+
+
+bias_cell_plotting%>%
+    mutate(color_group=case_when(
+      (Biased_Monocytes=="biased"&Biased_Neutrophils=="not")~"Mono",
+      (Biased_Monocytes=="not"&Biased_Neutrophils=="biased")~"Neu",
+      (Biased_Monocytes=="biased"&Biased_Neutrophils=="biased")~"Both",
+      (Biased_Monocytes=="not"&Biased_Neutrophils=="not")~"Not",
+    ))%>%
+  ggplot(aes(x=Bias_scores_Neu,y=Bias_scores_Mono,color=color_group))+
+  geom_point(alpha=0.4)+
+  ggpubr::theme_pubr(base_size=24)+
+  geom_vline(xintercept = outlier_cutoff_val_Neu,linetype=2)+
+  geom_hline(yintercept = outlier_cutoff_val_Mono,linetype=2)+
+  xlab("Neutrophil Bias Score")+
+  ylab("Monocyte Bias Score")+
+  guides(color=guide_legend(title=""))+
+  scale_color_manual(values=c("Neu"="#0067A5",
+                              "Mono"="#F99379",
+                              "Not"=pals::kelly(n=14)[4],
+                              "Both"=pals::brewer.greens(n=5)[4]))
+
+ggsave(filename="./Figures/GMP_point_outlier_mono_vs_neu_with_cutoffs.pdf",width=7.5,height = 4.5,dpi = 320)
+
+
+```
+
+
+# Figure 4C
+
+```{r}
+
+highlight_these_cells_mon=bias_cell_plotting%>%
+      filter((Biased_Monocytes=="biased"&Biased_Neutrophils=="not"))%>%row.names
+highlight_these_cells_neu=bias_cell_plotting%>%
+      filter((Biased_Monocytes=="not"&Biased_Neutrophils=="biased"))%>%row.names
+
+Seurat::Idents(seurat_obj)<-"Cluster.Assignment"
+ Seurat::DimPlot(seurat_obj,raster = T,reduction = "umap",cols = pals::kelly(n=14)[-1])+
+   theme(text = element_text(size = 16),axis.text.x = element_text(size=16),axis.text.y = element_text(size=16),legend.position="none",legend.text = element_text(size=16))&
+   Seurat::FeaturePlot(seurat_obj,reduction = "umap",features = c("Irf8"),order=T,raster=T,cols = c("grey90",RColorBrewer::brewer.pal(n=7,name="Reds")[7]))+
+   theme(text = element_text(size = 16),axis.text.x = element_text(size=16),axis.text.y = element_text(size=16))
+
+ggsave("./Figures/UMAP_cell_IDs_with_Irf8.pdf",plot=last_plot(),width=7.5,height=4.5,dpi=320)
+
+  
+Seurat::DimPlot(seurat_obj,cells.highlight =highlight_these_cells_neu,cols.highlight = "#0067A5",label=F,repel = F,raster=F,order = T)+
+  theme(text = element_text(size = 16),axis.text.x = element_text(size=16),axis.text.y = element_text(size=16),legend.position = "none")&
+Seurat::DimPlot(seurat_obj,cells.highlight =highlight_these_cells_mon,cols.highlight="#F99379",label=F,repel = F,raster=F,order = T)+
+  theme(text = element_text(size = 16),axis.text.x = element_text(size=16),axis.text.y = element_text(size=16),legend.position = "none")
+  
+ggsave("./Figures/Highlight_biased_GMPs_in_UMAPs.pdf",plot=last_plot(),width=7.5,height=4.5,dpi=320)
+
+```
+
+
+# Figure 4D
+
+```{r}
+Seurat::DefaultAssay(seurat_obj)<-"RNA"   
+
+volcano_frame<-Seurat::FindMarkers(object = subset(seurat_obj,cells = c(highlight_these_cells_mon,highlight_these_cells_neu)),
+                           ident.1 = highlight_these_cells_mon,
+                           ident.2 = highlight_these_cells_neu)%>%
+  mutate(SigCall=case_when(
+      (avg_log2FC>1)&(p_val_adj<0.05)~"Up",
+      (avg_log2FC<(-1))&(p_val_adj<0.05)~"Down",
+      TRUE~"NS"
+    ))%>%
+    mutate(SigCall=factor(SigCall,levels=unique(SigCall)))%>%
+  tibble::rownames_to_column(var="Gene_names")
+  
+
+ggplot(volcano_frame,aes(x=avg_log2FC,y=(-1)*log10(p_val_adj),color=SigCall,label=Gene_names,fontface="bold"))+
+    geom_point(alpha=0.6)+
+    xlab(paste0("Differential RNA expression (",as.character("Mono")," vs. ",as.character("Neutro"),")"))+
+    geom_label_repel(data=volcano_frame%>%
+                       filter(Gene_names%in%c("S100a9","Cebpe","Bcl2","Mcl1","Elane","Gcsf3r","Ccr2","B2m","Ms4a3","Itgam","Itga1","Ly6e","Csf1r","Cd63","Gpi1","Trem2","Ms4a4c","Flt3","Irf8","Ly86","Tcf4","Siglech","Gfi1")),
+                     aes(x=avg_log2FC,
+                         y=(-1)*log10(p_val_adj),
+                         color=SigCall),
+                     max.overlaps = 20,
+                     label.padding=0.1,
+                     size=5,
+                     force=2,show.legend = F)+
+    scale_color_manual(values=c("Up"=RColorBrewer::brewer.pal(n=5,name="Reds")[5],
+                                "Down"=RColorBrewer::brewer.pal(n=5,name="Blues")[5],
+                                "NS"="grey80"),
+                       name="")+
+    ggpubr::theme_classic2(base_size=18)
+
+  ggsave(filename ="./Figures/RNA_volcano_GMPs_for_Mono_vs_Neutro.pdf",width=9,height=6,plot=last_plot())
+ 
+```
+
+
+# Figure 4E
+
+```{r}
+
+bias_cells_for_4E <- t(Seurat::GetAssay(object = subset(seurat_obj,subset = Cluster.Assignment=="GMP"),assay="bias_scores")@misc[["classification"]][,colnames(subset(seurat_obj,subset = Cluster.Assignment=="GMP"))])%>%
+  as.data.frame%>%
+  tibble::rownames_to_column(var="cell_names")%>%
+  inner_join(Seurat::FetchData(subset(seurat_obj,subset = Cluster.Assignment=="GMP"),
+                               vars = c("Age","Replicate"))%>%
+               tibble::rownames_to_column(var="cell_names"),
+             by="cell_names")%>%
+  tibble::column_to_rownames(var="cell_names")%>%
+mutate(combos=case_when(
+  HSC=="not"&`HSC/MPP`=="not"&Monocytes=="not"&Neutrophils=="not"~"None",
+  HSC=="not"&`HSC/MPP`=="not"&Monocytes=="not"&Neutrophils=="biased" ~"Neu_only",
+  HSC=="not"&`HSC/MPP`=="not"&Monocytes=="biased"&Neutrophils=="not" ~"Mono_only",
+  HSC=="not"&`HSC/MPP`=="not"&Monocytes=="biased"&Neutrophils=="biased" ~"Neu_and_mono",
+  HSC=="not"&`HSC/MPP`=="biased"&Monocytes=="not"&Neutrophils=="not" ~"MPP_only",
+  HSC=="not"&`HSC/MPP`=="biased"&Monocytes=="not"&Neutrophils=="biased" ~"MPP_and_neu",
+  HSC=="not"&`HSC/MPP`=="biased"&Monocytes=="biased"&Neutrophils=="not" ~"MPP_and_mono",
+  HSC=="not"&`HSC/MPP`=="biased"&Monocytes=="biased"&Neutrophils=="biased" ~"all_but_hsc",
+  HSC=="biased"&`HSC/MPP`=="not"&Monocytes=="not"&Neutrophils=="not" ~"HSC_only",
+  HSC=="biased"&`HSC/MPP`=="not"&Monocytes=="not"&Neutrophils=="biased" ~"HSC_and_Neu",
+  HSC=="biased"&`HSC/MPP`=="not"&Monocytes=="biased"&Neutrophils=="not" ~"HSC_and_mono",
+  HSC=="biased"&`HSC/MPP`=="not"&Monocytes=="biased"&Neutrophils=="biased" ~"all_but_mpp",
+  HSC=="biased"&`HSC/MPP`=="biased"&Monocytes=="not"&Neutrophils=="not" ~"HSC_and_MPP",
+  HSC=="biased"&`HSC/MPP`=="biased"&Monocytes=="not"&Neutrophils=="biased" ~"all_but_mono",
+  HSC=="biased"&`HSC/MPP`=="biased"&Monocytes=="biased"&Neutrophils=="not" ~"all_but_neu",
+  HSC=="biased"&`HSC/MPP`=="biased"&Monocytes=="biased"&Neutrophils=="biased" ~"All"
+))%>%
+  group_by(combos,Age)%>%
+  summarise(combo_counts=n())%>%
+  ungroup()%>%
+  group_by(Age)%>%
+  mutate(total_age_counts=sum(combo_counts),
+         frac_counts =combo_counts/total_age_counts)%>%
+  filter(combos %in% c("Neu_only","Mono_only","Neu_and_mono"))%>%
+  ungroup()%>%
+  group_by(combos,Age)%>%
+  mutate(total_counts=sum(combo_counts))%>%
+  arrange(desc(total_counts))%>%
+mutate(combos=factor(combos,levels=c("Neu_only","Mono_only","Neu_and_mono")))
+  
+  
+ggplot(bias_cells_for_4E,aes(x=combos,y=frac_counts,fill=Age,label=round(frac_counts,3)))+
+  geom_bar(position = position_dodge2(width=0.9,preserve="single"),stat="identity",show.legend = F)+
+  theme_bw(base_size = 24)+
+  ylab("Percentage of\n Cell Population")+
+  xlab("")+scale_y_continuous(limits = c(0,NA),expand = c(0,NA))+
+  theme(axis.text.x = element_blank(),axis.ticks.x = element_blank())+
+  scale_fill_manual(values = c("firebrick3","dodgerblue"))
+  
+  ggsave(filename="./Figures/Barplot_for_upset_plot_reduced_no_labels_no_legend.pdf",width=9,height=6,plot=last_plot())
+
+```
+
+# Figure 4F
+
+```{r}
+
+Seurat::DefaultAssay(seurat_obj)<-"tfsulm"
+bias_cells_for_4F <- t(Seurat::GetAssay(object = subset(seurat_obj,subset = Cluster.Assignment=="GMP"),assay="bias_scores")@misc[["classification"]][,colnames(subset(seurat_obj,subset = Cluster.Assignment=="GMP"))])%>%
+  as.data.frame%>%
+  tibble::rownames_to_column(var="cell_names")%>%
+  inner_join(Seurat::FetchData(subset(seurat_obj,subset = Cluster.Assignment=="GMP"),
+                               vars = c("Age","Cebpe","Cebpa","Myc","Irf8","Klf4","Ddit3","Xbp1"))%>%
+               tibble::rownames_to_column(var="cell_names"),
+             by="cell_names")%>%
+  tibble::column_to_rownames(var="cell_names")%>%
+    mutate(color_group=case_when(
+      (Monocytes=="biased"&Neutrophils=="not")~"Mono",
+      (Monocytes=="not"&Neutrophils=="biased")~"Neu",
+      (HSC=="not"&Monocytes=="not"&Neutrophils=="not"&`Megakaryocyte progenitors`=="not"&`Myeloerythroid Progenitor`=="not"&`Erythroid Pro`=="not"&Erythroblast=="not"&`Pre B cells`=="not"&`B cells`=="not"&`Eosinophil/Basophil Pro`=="not")~"Not",
+      TRUE~"Ignore"))%>%
+  mutate(color_group=factor(color_group,levels=c("Not","Mono","Neu","Ignore")))%>%
+  filter(color_group!="Ignore")%>%
+  dplyr::select(Cebpe,Cebpa,Myc,Irf8,Klf4,Ddit3,Xbp1,Age,color_group)%>%
+tidyr::pivot_longer(!c(Age,color_group),names_to = "TF",values_to = "Activity")%>%
+  group_by(Age,color_group,TF)%>%
+  summarise(Med = median(Activity))%>%
+  tidyr::pivot_wider(id_cols = c(Age,color_group),names_from = "TF",values_from = "Med")
+  
+ 
+bias_cells_for_4F<-bias_cells_for_4F%>%as.data.frame
+rownames(bias_cells_for_4F)<-LETTERS[1:6]
+ 
+heatmap_df<-t(bias_cells_for_4F%>%as.data.frame%>%dplyr::select(-Age,-color_group)%>%as.matrix)
+colnames(heatmap_df)<-LETTERS[1:6]
+
+
+ pheatmap::pheatmap(heatmap_df,
+                     scale="row",
+                     show_rownames = T,
+                     na_col = "grey80",
+                     border_color = "white",
+                     annotation_col = bias_cells_for_4F%>%
+                      dplyr::rename(Bias="color_group")%>%
+                      dplyr::select(Bias,Age),
+                     annotation_colors = list("Age"=c("Young"=RColorBrewer::brewer.pal(n=5,"Purples")[5],
+                                                      "Middle-Aged"=RColorBrewer::brewer.pal(n=5,"Oranges")[3]),
+                                              "Bias"=c("Not"="grey70",
+                                                              "Mono"="#F99379",
+                                                              "Neu"="#0067A5")),
+                     color =grDevices::colorRampPalette(colors = rev(RColorBrewer::brewer.pal(n = 11, name = "RdBu")))(100),
+                     color_legend_n=100,
+                     show_colnames = F,
+                     cluster_rows = T,
+                     cluster_cols = F,gaps_col = 3,
+                     filename = "~./Figures/TF_biasGMPs_for_Mono_vs_Neutro.pdf",
+                      width = 9,
+                   height = 6,
+                   fontsize = 20)
+
+```
+

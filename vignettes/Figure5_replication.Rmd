@@ -1,0 +1,530 @@
+---
+title: "Figure5_figure_replication"
+author: "Michael Bowman and Bobby Bowman"
+date: "2026-08-31"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Figure 5 replication
+This script already assumes a seurat object and SupeRJump have been applied to for the dataset, we have these included in data("")
+
+
+```{r load libraries}
+library(SupeRJump)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(ggpubr)
+library(pals)
+
+
+```
+
+## load in completed seurat object and accompanying 
+
+```{r load data}
+load(system.file(paste0('data/barcoded_seurat_object.rDa'), package = 'SupeRJump'))
+
+
+modified_Z<-Seurat::FetchData(seurat_obj, 
+                              vars = c("custom_cell_classes_fine",
+                                                 "sgRNA",
+                                                 "custom_cell_classes_broad",
+                                                 "sample","Combined_Ordering","absorbing_states"))
+
+
+
+```
+
+
+
+# Figure 5 B
+
+
+
+```{r}
+
+top_barcodes_to_use<-modified_Z%>%
+  group_by(sgRNA)%>%
+  mutate(barcode_count=n())%>%
+  ungroup()%>%
+  distinct(sgRNA,barcode_count)%>%
+  arrange(desc(barcode_count))%>%
+  arrange(desc(barcode_count))%>%
+  #slice(2:11)%>% # the biggest "Barcode" is the no barcode group
+  arrange(desc(barcode_count))%>%
+  mutate(rank_order = row_number())%>%
+  mutate(color_map=case_when(
+     rank_order==2~"sgRNA_1",
+     rank_order==3~"sgRNA_2",
+     rank_order==4~"sgRNA_3",
+     rank_order==5~"sgRNA_4",
+     rank_order==6~"sgRNA_5",
+     rank_order==7~"sgRNA_6",
+     rank_order==8~"sgRNA_7",
+     rank_order==9~"sgRNA_8",
+     rank_order==10~"sgRNA_9",
+     rank_order==11~"sgRNA_10",
+     TRUE~"others"))%>%
+  mutate(color_map=factor(color_map,levels=c(paste0("sgRNA_",1:10),"others")))
+
+ggplot(top_barcodes_to_use%>%
+         filter(rank_order!=1)%>%arrange(desc(color_map)),
+       aes(x=rank_order,y=barcode_count,color=color_map))+
+  geom_point(size=3)+
+  scale_color_manual(values = c("others"="grey70",
+     "sgRNA_1"=pals::cols25(n=11)[2],
+     "sgRNA_2"=pals::cols25(n=11)[3],
+     "sgRNA_3"=pals::cols25(n=11)[4],
+    "sgRNA_4"=pals::cols25(n=11)[5],
+    "sgRNA_5"=pals::cols25(n=11)[1],
+     "sgRNA_6"=pals::cols25(n=11)[7],
+    "sgRNA_7"=pals::cols25(n=11)[8],
+    "sgRNA_8"=pals::cols25(n=11)[9],
+     "sgRNA_9"=pals::cols25(n=24)[24],
+     "sgRNA_10"=pals::cols25(n=16)[16]))+
+  geom_hline(yintercept = 5,linetype = "dashed",linewidth=1.4)+
+  ggpubr::theme_classic2(base_size = 18)+
+  theme(legend.title = element_blank())+
+  ylim(c(0,600))+
+  xlab("Abundance Ranking")+
+  ylab("Cell abundance per barcode")
+
+
+```
+
+
+# Figure 5C 
+ This produces a stacked barplot 
+
+
+```{r}
+top_10_barcodes_to_use<-modified_Z%>%
+  group_by(sgRNA)%>%
+  mutate(barcode_count=n())%>%
+  ungroup()%>%
+  distinct(sgRNA,barcode_count)%>%
+  arrange(desc(barcode_count))%>%
+  arrange(desc(barcode_count))%>%
+  slice(2:11)%>% # the biggest "Barcode" is the no barcode group
+  arrange(desc(barcode_count))%>%
+  pull(sgRNA)
+
+
+table_values<-modified_Z%>%
+  filter(sgRNA%in%top_10_barcodes_to_use)%>%
+ dplyr::select(sgRNA,custom_cell_classes_broad)
+
+table_values<-table(table_values$sgRNA,table_values$custom_cell_classes_broad)
+table_values<-table_values/rowSums(table_values)
+
+  data.frame(table_values[top_10_barcodes_to_use,])%>%
+    dplyr::rename(sgRNA="Var1",
+                  Cell="Var2",
+                  Proportion="Freq")%>%
+  mutate(sgRNA=factor(sgRNA,levels=top_10_barcodes_to_use))%>%
+  mutate(sgRNA = paste0("sgRNA_",as.integer(sgRNA)-1))%>%
+    mutate(sgRNA=ifelse(sgRNA=="sgRNA_0","Unk.",sgRNA))%>%
+  mutate(sgRNA = factor(sgRNA,levels=unique(sgRNA)))%>%
+  mutate(Cell=factor(Cell,levels=c("HSPC","MultiLin","MDP","BMCP","Erp","MkP","Baso","Mast","Neu","MP","cDC","Lymph")))%>%
+  ggplot(aes(x=sgRNA,y=Proportion,fill=Cell))+
+  geom_col(position="stack",show.legend = T)+
+  ggpubr::theme_classic2(base_size=24)+
+  scale_y_continuous(expand=c(0,0),limits = c(0, NA))+
+    scale_fill_manual(values=pals::watlington())+
+    guides(fill = guide_legend(title = ""))+
+theme(axis.title.x = element_blank(),
+      axis.text.x=element_text(angle=45,hjust=1,vjust=1,size=16))
+
+```
+
+# Figure 5 D
+We show visitation probability going from from finer cell types (rows) to coarser ones (columns). 
+visitation probability should not incldue absorbing states, so be sure to eliminate those cells from both the rows and columns.
+
+```{r figure 5D visitation probability}
+
+combined_data_VP<-rbind(reshape2::melt(as.matrix(seurat_obj@graphs$visitation),
+                                       varnames=c("current_state","next_state"),value.name="probability"))%>%
+  inner_join(modified_Z%>%
+               filter(is.na(absorbing_states))%>%
+               tibble::rownames_to_column(var="current_state")%>%
+               select(current_state,custom_cell_classes_broad,sgRNA,custom_cell_classes_fine,sample))%>%
+  rename(cluster_init=custom_cell_classes_broad)%>%
+  rename(init_barcode=sgRNA)%>%
+  rename(init_fine_cells=custom_cell_classes_fine)
+
+
+combined_data_VP<-combined_data_VP%>%
+  inner_join(modified_Z%>%
+               filter(is.na(absorbing_states))%>%
+               tibble::rownames_to_column(var="next_state")%>%
+               select(next_state,custom_cell_classes_broad,sgRNA,custom_cell_classes_fine))%>%
+  rename(cluster_to=custom_cell_classes_broad)%>%
+ rename(end_barcode=sgRNA)%>%
+  rename(end_fine_cells=custom_cell_classes_fine)
+
+combined_data_VP<-combined_data_VP%>%
+  dplyr::group_by(cluster_init,cluster_to)%>%
+  dplyr::mutate(red_mean=mean(probability))%>%
+  dplyr::ungroup()%>%
+  dplyr::group_by(cluster_init,cluster_to,init_barcode)%>%
+  dplyr::mutate(full_mean_sgRNA=mean(probability))%>%
+  dplyr::ungroup()%>%
+  dplyr::mutate(fitted_lm_mean_adjusted_sgRNA=probability-(full_mean_sgRNA-red_mean))%>%
+  mutate(scaled_probability_sgRNA=(fitted_lm_mean_adjusted_sgRNA-min(fitted_lm_mean_adjusted_sgRNA))/(max(fitted_lm_mean_adjusted_sgRNA)-min(fitted_lm_mean_adjusted_sgRNA)))
+
+
+
+temp_prob_blocks_sgRNA5<-combined_data_VP%>%
+  group_by(init_fine_cells,cluster_to)%>%
+  summarize(block_mean=sum(scaled_probability_sgRNA))%>%
+  mutate(init_fine_cells=factor(init_fine_cells,levels=c("MPP1","MPP2","MPP3","MPP4","MPP5","ML1","ML2","MEP","early_Erp","MkP","MDP","MP","cDC","BMCP","Mast","Baso","Neu","Lymph")))%>%
+  dplyr::mutate(cluster_to = factor(cluster_to,levels=c("HSPC","MultiLin","MDP","BMCP","Erp","MkP","Baso","Mast","Neu","MP","cDC","Lymph")))%>%
+  arrange(init_fine_cells,cluster_to)%>%
+  pivot_wider(id_cols = init_fine_cells,names_from=cluster_to,values_from=block_mean)%>%
+  tibble::column_to_rownames(var="init_fine_cells")
+
+Cluster_to_cluster_jump_VP_sgRNA5<-apply(temp_prob_blocks_sgRNA5,2,function(x){x/sum(x)})
+Cluster_to_cluster_jump_VP_sgRNA5<-t(apply(Cluster_to_cluster_jump_VP_sgRNA5,1,function(x){scale(x)}))
+colnames(Cluster_to_cluster_jump_VP_sgRNA5)<-colnames(temp_prob_blocks_sgRNA5)
+
+pheatmap::pheatmap(Cluster_to_cluster_jump_VP_sgRNA5,
+                   color=grDevices::colorRampPalette(colors = rev(RColorBrewer::brewer.pal(n = 11, name = "RdBu")))(100),
+                   scale="none",
+                   cluster_rows = F,
+                   cluster_cols = F,
+                   border_color = "white",
+                    cellwidth = 20,
+                   cellheight = 20,filename = "./Figures/VisitationProbability_fine_to_broad_for_all_cells.pdf")
+
+```
+
+
+
+# Figure 5 E
+
+```{r}
+
+combined_data<-rbind(reshape2::melt(t(GetAssayData(seurat_obj,assay = "lineage_fates"))%>%as.matrix(),
+                                    varnames=c("current_state","cluster_to"),
+                                    value.name="probability"))%>%
+  inner_join(modified_Z%>%
+               tibble::rownames_to_column(var="current_state")%>%
+               select(current_state,custom_cell_classes_broad,sgRNA,custom_cell_classes_fine,sample))
+
+Matrix_heatmap_data<-combined_data%>%
+  mutate(cluster_to=factor(cluster_to,levels=c("Erp","MkP","Baso","Mast","Neu","MP","cDC","Lymph")))%>%
+  filter(custom_cell_classes_broad=="HSPC"|custom_cell_classes_broad=="MultiLin")%>%
+  filter(sgRNA %in%top_10_barcodes_to_use)%>%
+  group_by(custom_cell_classes_broad,sgRNA,cluster_to)%>%
+  summarize(med_value_raw = median(probability))%>%
+  ungroup()%>%
+  mutate(sgRNA = factor(sgRNA,levels=top_10_barcodes_to_use))%>%
+  arrange(sgRNA)%>%
+  mutate(sgRNA = paste0("sgRNA_",as.integer(sgRNA)))%>%
+  mutate(sgRNA = factor(sgRNA,levels=unique(sgRNA)))%>%  
+  mutate(column_index_for_heatmap = paste0(custom_cell_classes_broad,"_",sgRNA))%>%
+  mutate(column_index_for_heatmap= factor(column_index_for_heatmap,
+                                          levels=c(paste0("HSPC_sgRNA_",0:10),
+                                                   paste0("MultiLin_sgRNA_",0:10))))%>%
+  arrange(column_index_for_heatmap)
+
+list_of_colors_annotation <- list(
+  `cell type`=c(`MultiLin`=pals::watlington(n=12)[2],
+          `HSPC`=pals::watlington(n=12)[1]),
+  cluster_to = c(`Erp`=pals::watlington(n=12)[5],
+            `MkP`=pals::watlington(n=12)[6],
+            `Baso`=pals::watlington(n=12)[7],
+            `Mast`=pals::watlington(n=12)[8],
+            `Neu`=pals::watlington(n=12)[9],
+            `MP`=pals::watlington(n=12)[10],
+            `cDC`=pals::watlington(n=12)[11],
+            `Lymph`=pals::watlington(n=12)[12]),
+  guide = c(
+              `sgRNA_1`=pals::cols25(n=11)[2],
+              `sgRNA_2`=pals::cols25(n=11)[3],
+              `sgRNA_3`=pals::cols25(n=11)[4],
+              `sgRNA_4`=pals::cols25(n=11)[5],
+              `sgRNA_5`=pals::cols25(n=11)[1],
+              `sgRNA_6`=pals::cols25(n=11)[7],
+           `sgRNA_7`=pals::cols25(n=11)[8],
+           `sgRNA_8`=pals::cols25(n=11)[9],
+           `sgRNA_9`=pals::cols25(n=24)[24],
+           `sgRNA_10`=pals::cols25(n=16)[16])
+)
+
+tidyheatmaps::tidy_heatmap(df = Matrix_heatmap_data%>%as.data.frame%>%
+                             filter(sgRNA !="sgRNA_0")%>%
+                             dplyr::rename(guide="sgRNA")%>%
+                             dplyr::rename(`cell type`="custom_cell_classes_broad"),
+                           rows = cluster_to,
+                           columns = column_index_for_heatmap,
+                          values = med_value_raw,
+                           annotation_col = c(`cell type`,guide),
+                           annotation_colors = list_of_colors_annotation,
+                           border_color = "white",
+                           colors = colorRampPalette(rev(RColorBrewer::brewer.pal(11, "RdBu")))(100),
+                           scale = "row",display_numbers = F,
+                           color_legend_n = 100,gaps_col = `cell type`,
+                           fontsize = 12,cellwidth = 12,cellheight = 12,
+                           show_rownames = T,show_colnames = F,
+                           angle_col = 45,legend = T,annotation_legend = T,
+                           cluster_rows = F,cluster_cols = F,annotation_names_col = T,filename = "./Figures/Fate_heatmap_with_legend.pdf",width=6,height=9)
+
+
+
+
+anova_model <- aov(mean_fate ~ custom_cell_classes_broad * alternative_boxplot_cats, data = check_fates_df_truncated%>%
+         distinct(cell_names,alternative_boxplot_cats,mean_fate,.keep_all = T)%>%
+         mutate(mean_fate = (mean_fate-min(mean_fate))/(max(mean_fate)-min(mean_fate))))
+summary(anova_model)
+
+ANOVA_TUKEY_P_VAL<-stats::TukeyHSD(anova_model, which = "custom_cell_classes_broad:alternative_boxplot_cats")
+
+```
+
+
+
+# Figure 5 F
+This figure looks into inter, intra, vs alternative routes to a cDC lineage. 
+
+```{r}
+
+
+check_fates_df<-seurat_obj@misc$fates_individual%>%
+  data.frame%>%
+  tibble::rownames_to_column(var="cell_names")%>%
+  pivot_longer(cols = !c(cell_names),names_to = "sink_cell",values_to = "Fate")%>%
+  filter(Fate!=0)
+
+check_fates_df<-check_fates_df%>%
+  inner_join(modified_Z%>%
+               filter(is.na(absorbing_states))%>%
+               tibble::rownames_to_column(var="cell_names"),
+             by="cell_names")
+
+check_fates_df<-check_fates_df%>%
+  inner_join(modified_Z%>%
+              filter(!is.na(absorbing_states))%>%
+               tibble::rownames_to_column(var="cell_names")%>%
+               dplyr::rename(sink_cell="cell_names"), by="sink_cell",suffix=c("","_sink_cells"))
+
+
+
+check_fates_df_truncated<-check_fates_df%>%
+  mutate(sgRNA=ifelse(is.na(sgRNA),"none",sgRNA))%>%
+  mutate(sgRNA_sink_cells=ifelse(is.na(sgRNA_sink_cells),"none",sgRNA_sink_cells))%>%
+  filter(custom_cell_classes_fine_sink_cells%in%c("cDC"))%>%
+  filter(sgRNA!="none")%>%
+  filter(custom_cell_classes_broad%in%c("MultiLin","HSPC","cDC"))%>%
+  mutate(custom_cell_classes_broad=factor(custom_cell_classes_broad,levels=c("HSPC","MultiLin","cDC")))%>%
+  mutate(alternative_boxplot_cats = case_when(sgRNA==sgRNA_sink_cells~"Intra",
+                                              (sgRNA%in%c(unique(sgRNA_sink_cells)))&(sgRNA!=sgRNA_sink_cells)~"Inter",                                                      !(sgRNA%in%c(unique(sgRNA_sink_cells)))&(sgRNA!=sgRNA_sink_cells)~"Alt.",
+                                              TRUE~"SKIP"))%>%
+  mutate(alternative_boxplot_cats=factor(alternative_boxplot_cats,levels=c("Alt.","Intra","Inter")))%>%
+  filter(Fate!=1 & Fate!=0)%>%
+  group_by(cell_names,alternative_boxplot_cats)%>%
+  mutate(mean_fate = mean(Fate))%>%
+  ungroup()
+
+ggplot(check_fates_df_truncated%>%
+         distinct(cell_names,alternative_boxplot_cats,mean_fate,.keep_all = T)%>%
+         mutate(mean_fate = (mean_fate-min(mean_fate))/(max(mean_fate)-min(mean_fate)))%>%
+         mutate(custom_cell_classes_broad=factor(custom_cell_classes_broad)),
+       aes(x=alternative_boxplot_cats,y=mean_fate,fill=alternative_boxplot_cats))+
+  geom_boxplot(show.legend = F)+
+  facet_wrap(~custom_cell_classes_broad,ncol = 4)+
+  ggpubr::theme_classic2(base_size = 14)+
+  theme(axis.text.x = element_text(angle=45,hjust=1,vjust=1), 
+        axis.title.x = element_blank(), 
+        strip.background = element_blank(),)+
+  scale_fill_manual(values=pals::okabe(n=3))+ 
+  ylab("Normalized\n Fate Score")+
+  scale_x_discrete(labels= c("Alt.","Intra","Inter"))
+
+
+ggsave(filename = "./Figures/fate_boxplots_guide_to_guides.pdf",plot = last_plot(),width = 4.875,height=2.75)
+
+
+
+anova_model <- aov(mean_fate ~ custom_cell_classes_broad * alternative_boxplot_cats, data = check_fates_df_truncated%>%
+         distinct(cell_names,alternative_boxplot_cats,mean_fate,.keep_all = T)%>%
+         mutate(mean_fate = (mean_fate-min(mean_fate))/(max(mean_fate)-min(mean_fate))))
+summary(anova_model)
+
+
+```
+
+
+# Figure 5 G
+
+This figure looks into CMFPT vs the Visitation probability for cells going to the highest fated MultiLin
+
+
+```{r}
+
+cell_id<-check_fates_df_truncated%>%
+         select(cell_names,custom_cell_classes_broad,Fate,alternative_boxplot_cats,mean_fate)%>%
+         distinct(cell_names,alternative_boxplot_cats,Fate,.keep_all = T)%>%
+  filter(custom_cell_classes_broad=="MultiLin")%>%
+  filter(alternative_boxplot_cats=="Intra")%>%
+  arrange(desc(Fate))%>%
+  slice(1)%>%
+  pull(cell_names)
+
+temp_prob_vec_go<-combined_data_VP%>%filter(next_state==cell_id)
+
+temp_time_vec_go<-reshape2::melt(as.matrix(seurat_obj@graphs$CMFPT),varnames=c("current_state","next_state"),value.name="CMFPT")%>%
+  
+  inner_join(modified_Z%>%
+               tibble::rownames_to_column(var="current_state")%>%
+               select(current_state,custom_cell_classes_broad,sgRNA))%>%
+  rename(cluster_init=custom_cell_classes_broad)%>%
+  
+  inner_join(modified_Z%>%
+               tibble::rownames_to_column(var="next_state")%>%
+               select(next_state,custom_cell_classes_broad))%>%
+  rename(cluster_to=custom_cell_classes_broad)%>%
+  
+  filter(next_state==cell_id)
+
+combined_df_to_plot<-inner_join(temp_prob_vec_go,
+                                temp_time_vec_go,
+                                by=c("current_state","next_state","cluster_init","cluster_to"))%>%
+  mutate(color_class=case_when(init_barcode=="TCAATCTATCTAACTTGGAA"~"sgRNA_5",
+                               init_barcode=="TCTTTGGTAGGTAGCTGCTT"~"sgRNA_4",
+                                init_barcode=="CGTAGGTTCGTTCCTATCGT"~"sgRNA_9",
+                               init_barcode=="CGGTACCAGCATAGGTTGCA"~"sgRNA_10",
+                               TRUE~"Other"))%>%
+  mutate(color_class=factor(color_class,levels=c("Other","sgRNA_4","sgRNA_5","sgRNA_9","sgRNA_10")))%>%
+  arrange(color_class)%>%
+  filter(CMFPT!=0)%>%
+  filter(cluster_init%in%c("MultiLin","HSPC"))%>%
+  filter(init_barcode!="none")%>%
+  mutate(cluster_init= factor(cluster_init,levels=c("HSPC","MultiLin")))
+
+ggplot(combined_df_to_plot,aes(x=log10(CMFPT+1),y= probability,color=color_class))+
+  geom_point(show.legend = T,alpha=0.7)+
+
+  ggpubr::theme_classic2(base_size = 20)+
+  scale_color_manual(values = c("Other"="grey70",
+                                "sgRNA_5"=pals::cols25(n=6)[1],
+                                "sgRNA_9"=pals::cols25(n=24)[24],
+                                "sgRNA_4"=pals::cols25(n=6)[5],
+                                "sgRNA_10"=pals::cols25(n=16)[16]))+
+  theme(legend.title = element_blank(),
+        legend.position = "top",
+          strip.background = element_blank())+
+  ylab("Visitation Score")+
+  xlab(expression(log[10](CMFPT)))+
+  facet_wrap(~cluster_init,axes="all",axis.labels = "margins")
+
+
+ggsave(filename = "./Figures/CMFPT_vs_VP_from_barcodes_to_highest_fated_multilin_cell_split_by_broad_with_guide4_5_9_10.pdf",width = 8,height=5)
+
+
+summary(manova(cbind(log10(CMFPT+1),scaled_probability_sample)~color_class:cluster_init,combined_df_to_plot))
+
+library(RVAideMemoire)
+pw <- pairwise.perm.manova(  cbind(log10(combined_df_to_plot$CMFPT+1), combined_df_to_plot$scaled_probability_sample),interaction(combined_df_to_plot$color_class,combined_df_to_plot$cluster_init),  nperm = 999)
+
+
+
+```
+
+
+
+# Figure 5 H
+
+```{r}
+
+
+combined_data_flight_time_wide_matrix<-reshape2::melt(as.matrix(seurat_obj@graphs$CMFPT),varnames=c("current_state","next_state"),value.name="CMFPT")%>%
+  
+  inner_join(modified_Z%>%
+               tibble::rownames_to_column(var="current_state")%>%
+               select(current_state,custom_cell_classes_broad,sgRNA))%>%
+  rename(cluster_init=custom_cell_classes_broad)%>%
+  
+  inner_join(modified_Z%>%
+               tibble::rownames_to_column(var="next_state")%>%
+               select(next_state,custom_cell_classes_broad))%>%
+  rename(cluster_to=custom_cell_classes_broad)%>%
+  
+  dplyr::group_by(cluster_init,cluster_to)%>%
+  dplyr::ungroup()%>%
+  dplyr::group_by(cluster_init,cluster_to,sgRNA)%>%
+  dplyr::ungroup()%>%
+  mutate(log_CMFPT=log10(CMFPT+1))%>%
+  dplyr::select(current_state,next_state,log_CMFPT)%>%
+  tidyr::pivot_wider(id_cols = current_state,names_from = next_state,values_from = log_CMFPT,values_fill = Inf)%>%
+  tibble::column_to_rownames(var="current_state")
+
+
+combined_data_VP_wide_matrix<-combined_data_VP%>%
+  dplyr::select(current_state,next_state,scaled_probability_sgRNA)%>%
+  tidyr::pivot_wider(id_cols = current_state,names_from = next_state,values_from = scaled_probability_sgRNA,values_fill = 0)%>%
+  tibble::column_to_rownames(var="current_state")
+
+# A quick trick to update the visitation graph with our custom normalization outside of regular batch correction for WDT enrichment
+G <- seurat_obj@graphs[["visitation"]]
+diag(combined_data_VP_wide_matrix)<-0
+dense_cells <- rownames(combined_data_VP_wide_matrix)
+idx <- match(dense_cells, rownames(G))
+G[idx, idx] <- as.matrix(combined_data_VP_wide_matrix)
+
+seurat_obj@graphs[["visitation"]] <- G
+ 
+seurat_obj<-SupeRJump::GetWeightedDestinationTime(seurat_obj = seurat_obj,
+                                       preference_lineage_column = "sgRNA",
+                                       enrichment_flag = T)
+
+
+E_df<-seurat_obj@misc[["WDT_pref_enrichment"]][top_10_barcodes_to_use,]%>%
+  as.data.frame%>%
+  tibble::rownames_to_column(var="guide")%>%
+  mutate(guide = factor(guide,levels=top_10_barcodes_to_use))%>%
+  mutate(guide = paste0("sgRNA_",as.integer(guide)))%>%
+  mutate(guide = factor(guide,levels=unique(guide)))%>%  
+  mutate(guide=factor(guide,levels=rev(c("sgRNA_9","sgRNA_7","sgRNA_4","sgRNA_2","sgRNA_1","sgRNA_3","sgRNA_6","sgRNA_8","sgRNA_5","sgRNA_10"))))%>%
+  pivot_longer(cols = !c(guide),names_to = "lineage",values_to="WDT_enrich")%>%
+  mutate(lineage = gsub("_membership","",lineage))%>%
+  group_by(lineage)%>%
+  arrange(desc(WDT_enrich))%>%
+  mutate(guide_rank = row_number())%>%
+  ungroup()%>%
+  arrange(guide)%>%
+  mutate(lineage = factor(lineage,levels=c("HSPC","MultiLin","MDP","BMCP","Erp","MkP","Baso","Mast","Neu","MP","cDC","Lymph")))
+  
+  
+
+ ggplot(E_df%>%
+          filter(lineage=="Erp"|lineage=="Lymph")%>%
+          arrange(lineage,guide_rank)%>%
+          arrange(guide),
+        aes(y=guide,x=guide_rank,color=lineage))+
+   geom_point(size=3)+
+   ggpubr::theme_classic2(base_size=18)+
+   theme(axis.title.y = element_blank(),
+         legend.title = element_blank())+
+   xlab("WDT enrichment rank")+
+   scale_color_manual(values=c("Erp"=pals::watlington(n=12)[5],
+                               "Lymph"=pals::watlington(n=12)[12]))
+ 
+ 
+ cor.test(E_df%>%
+          filter(lineage=="Erp")%>%
+          arrange(lineage,guide)%>%pull(WDT_enrich),
+ E_df%>%filter(lineage=="Lymph")%>%
+   arrange(lineage,guide)%>%
+   pull(WDT_enrich),
+ alternative = "two.sided",method="spearman")
+
+```
+
+
