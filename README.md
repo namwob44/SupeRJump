@@ -31,7 +31,7 @@ You can install the development version of `SupeRJump` from GitHub:
 
 ```bash
 curl -L \
-https://raw.githubusercontent.com/namwob44/SupeRJump/master/install.sh \
+https://raw.githubusercontent.com/namwob44/SupeRJump/main/install.sh \
 | bash
 ```
 
