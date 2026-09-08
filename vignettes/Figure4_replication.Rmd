@@ -24,7 +24,7 @@ library(ggrastr)
 # load data
 
 ```{r}
-data("healthy_aging_seurat_object",package = "SupeRJump")
+load(system.file(paste0('data/healthy_seurat_object.rDa'), package = 'SupeRJump'))
 
 ```
 
