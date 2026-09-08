@@ -29,9 +29,10 @@ The package is especially useful for single cell RNA lineage tracking with a str
 
 You can install the development version of `SupeRJump` from GitHub:
 
-```r
-# install.packages("remotes")
-remotes::install_github("namwob44/SupeRJump")
+```bash
+curl -L \
+https://raw.githubusercontent.com/namwob44/SupeRJump/master/install.sh \
+| bash
 ```
 
 Then load the package:
