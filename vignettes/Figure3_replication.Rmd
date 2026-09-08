@@ -1,0 +1,415 @@
+---
+title: "Figure 3 replication"
+author: "Michael Bowman and Bobby Bowman"
+date: "2026-09-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load libraries}
+library(dplyr)
+library(SupeRJump)
+library(ggplot2)
+library(ggrepel)
+library(topGO)
+library(GO.db)
+library(org.Mm.eg.db)
+
+```
+
+```{r load data}
+load(system.file(paste0('data/healthy_seurat_object.rDa'), package = 'SupeRJump'))
+load(system.file(paste0('data/healthy_model_fit_list.rDa'), package = 'SupeRJump'))
+
+
+```
+# Figure 3A
+
+
+Let's try dot plot for this figure
+```{r making jump magnitude figure}
+
+Y<-GetSinkData(seurat_obj,state_grouping_column_name="Cluster.Assignment",pseudotime_column_name = "Combined_Ordering")
+
+
+jump_ID_list<-GetJumpProgramFeatures(seurat_obj,Y,Prob_reduced,
+                                     state_grouping_column_name = "Cluster.Assignment",
+                                     pseudotime_column_name = "Combined_Ordering",
+                                     batch_correction_column_name = "orig.ident")
+
+Z<-Seurat::Embeddings(seurat_obj, "transformed_pca")%>%
+  as.data.frame()%>%
+  tibble::rownames_to_column(var="row_names")%>%
+  dplyr::inner_join(Seurat::FetchData(seurat_obj,vars=c("Combined_Ordering","Cluster.Assignment"))%>%
+                      tibble::rownames_to_column(var="row_names"),
+                    by="row_names")%>%
+  arrange(Combined_Ordering)%>%
+  tibble::column_to_rownames(var="row_names")
+
+
+sink_iter = match(jump_ID_list[["jumps_df"]][["Sink_Type"]],levels(Z$Cluster.Assignment))
+PC_iter = c(as.integer(gsub("PCT_","",jump_ID_list[["jumps_df"]][["PC_names"]])))
+
+iter_to_grab<-(sink_iter-1)*(ncol(Z)-2)+PC_iter
+
+jump_ID_list[["jumps_df"]]$Jump_value<-lapply(iter_to_grab,function(x){
+check<-Prob_reduced[["model_fits"]][[as.integer(x)]]
+  return(check[["solution"]][3])
+})%>%unlist()
+
+jump_df_mod<-jump_ID_list[["jumps_df"]]%>%
+  mutate(Sink_Type=case_when(Sink_Type=="Eosinophil/Basophil Pro"~"Eos/Baso Pro",
+                                     Sink_Type=="Megakaryocyte progenitors"~"Mega Pro",
+                                     Sink_Type=="Myeloerythroid Progenitor"~"Mye/Ery Pro",
+                                     TRUE~Sink_Type))
+
+jump_plot<-ggplot(jump_df_mod%>%
+                    mutate(PC_names=as.integer(gsub("PCT_","",PC_names)))%>%
+         filter(PC_names<=30)%>%
+         mutate(PC_names=factor(PC_names,levels=c(1:50))),
+       aes(x=PC_names,y=abs(Jump_value)))+
+  geom_point(size=3)+
+  xlab("PCs with Jump Terms in Model Fit")+
+  ylab("Jump Magnitude in PC Space")+
+  geom_label_repel(data=jump_df_mod%>%
+                      mutate(PC_names=as.integer(gsub("PCT_","",PC_names)))%>%
+                     filter(PC_names<=30)%>%
+         mutate(PC_names=factor(PC_names,levels=c(1:50))),
+                   mapping=aes(x=PC_names,y=abs(Jump_value),label=Sink_Type),
+                   size=6,
+                   max.overlaps = 20,force=50)+
+  coord_cartesian(xlim=c(0,12), expand=T)+
+  ylim(c(0.15,0.55))+
+  theme_bw(base_size = 24)
+
+ggsave(plot=jump_plot,filename = "./Figures/Jump_magnitude_plot.pdf",width = 8,height=6,dpi=320)
+  
+```
+
+
+
+# Figure 3B
+
+```{r getting PC4 jump curve}
+Z<-Seurat::Embeddings(seurat_obj, "transformed_pca")%>%
+  as.data.frame()%>%
+  tibble::rownames_to_column(var="row_names")%>%
+  dplyr::inner_join(Seurat::FetchData(seurat_obj,vars=c("Combined_Ordering"))%>%
+                      tibble::rownames_to_column(var="row_names"),
+                    by="row_names")%>%
+  arrange(Combined_Ordering)%>%
+  tibble::column_to_rownames(var="row_names")
+
+
+Z$probability_GMP_PC4<-SupeRJump::JDD_sum_over_sinks_vec(pars_mat = t(as.matrix(Prob_reduced[["model_fits"]][[(sink_iter-1)*(ncol(Z)-1)+PC_iter]][["solution"]])),
+                                  Xt = as.numeric(Z[,PC_iter]),
+                                  Yp = as.numeric(Y[sink_iter,PC_iter+1]),
+                                  deltat = abs(as.numeric(Z[-starting_point,(ncol(Z))])-as.numeric(Z[starting_point,(ncol(Z))])),
+                                  y_dts = Y$Combined_Ordering[sink_iter],
+                                  X0 = as.numeric(Z[starting_point,PC_iter]),
+                                  t0 = as.numeric(Z[starting_point,(ncol(Z))]), order = 10,eps_sd = 1e-16
+                                    )
+
+
+
+ggplot(Z,
+       aes(x=Combined_Ordering,y=probability_GMP_PC4))+
+  geom_smooth(method = "loess",se=F,inherit.aes = T,show.legend = F,size=3,color="black")+
+  theme_classic(base_size=24)+
+  ylim(c(0,NA))+
+  ggtitle("PC4: GMP")+
+  geom_vline(xintercept=as.numeric(Y[5,"Combined_Ordering"]),linetype="longdash",size=1.5)+
+  xlab("Pseudotime")+
+  ylab("Probability Density")
+ggsave(plot=last_plot(),filename ="./Figures/Model_fit_for_jump_PC4.pdf"),width = 8,height=6,dpi=320)
+
+```
+
+
+```{r getting PC29 diffusion curve}
+\Z<-Seurat::Embeddings(seurat_obj, "transformed_pca")%>%
+  as.data.frame()%>%
+  tibble::rownames_to_column(var="row_names")%>%
+  dplyr::inner_join(Seurat::FetchData(seurat_obj,vars=c("Combined_Ordering"))%>%
+                      tibble::rownames_to_column(var="row_names"),
+                    by="row_names")%>%
+  arrange(Combined_Ordering)%>%
+  tibble::column_to_rownames(var="row_names")
+
+sink_iter =3 
+PC_iter = 29 
+starting_point=1
+
+iter_to_grab<-(sink_iter-1)*(ncol(Z)-1)+PC_iter
+
+Z$probability_GMP_PC29<-SupeRJump::JDD_sum_over_sinks_vec(pars_mat = t(as.matrix(Prob_reduced[["model_fits"]][[(sink_iter-1)*(ncol(Z)-1)+PC_iter]][["solution"]])),
+                                  Xt = as.numeric(Z[,PC_iter]),
+                                  Yp = as.numeric(Y[sink_iter,PC_iter+1]),
+                                  deltat = abs(as.numeric(Z[-starting_point,(ncol(Z))])-as.numeric(Z[starting_point,(ncol(Z))])),
+                                  y_dts = Y$Combined_Ordering[sink_iter],
+                                  X0 = as.numeric(Z[starting_point,PC_iter]),
+                                  t0 = as.numeric(Z[starting_point,(ncol(Z))]), 
+                                    )
+
+ggplot(Z,
+       aes(x=Combined_Ordering,y=probability_GMP_PC29))+
+  geom_smooth(method = "loess",se=F,inherit.aes = T,show.legend = F,size=3,color="black")+
+  theme_classic(base_size=24)+
+  ylim(c(0,NA))+
+  ggtitle("PC29: GMP")+
+  geom_vline(xintercept=as.numeric(Y[sink_iter,"Combined_Ordering"]),linetype="longdash",size=1.5)+
+  xlab("Pseudotime")+
+  ylab("Probability Density")
+
+ggsave(plot=last_plot(),filename ="./Figures/Model_fit_for_jump_PC29.pdf"),width = 8,height=6,dpi=320)
+
+
+
+
+```
+
+
+# Figure 3C
+
+```{r getting GO bar plots}
+
+GO_lists<-JumpROPE(seurat_obj,jump_ID_list)
+
+df_plot_PC4<-rbind(GO_lists[["negative_genes"]][["PC_4_negative"]]%>%
+                     mutate(Fisher=as.numeric(Fisher))%>%
+                      filter(Fisher<0.0023)%>%
+                      arrange(desc(Fisher))%>%
+                      mutate(score= log10(Fisher))%>%
+                     mutate(feature_loading="negative"),
+                    GO_lists[["postive_genes"]][["PC_4_positive"]]%>%
+                      mutate(Fisher=as.numeric(Fisher))%>%
+                      filter(Fisher<0.003)%>%
+                      arrange(desc(Fisher))%>%
+                      mutate(score= -log10(Fisher))%>%
+                      mutate(feature_loading="positive"))
+
+ggplot(df_plot_PC4%>%
+         arrange((score))%>%
+         mutate(GO.ID=factor(GO.ID,levels=GO.ID))%>%
+         mutate(Term=factor(Term,levels=Term))%>%
+         mutate(GO_N_Term=paste0(GO.ID," ",Term))%>%
+         mutate(GO_N_Term=factor(GO_N_Term,levels=unique(GO_N_Term))), 
+       aes(y = GO_N_Term, x = score,fill=feature_loading)) +
+  geom_bar(stat = "identity",inherit.aes = T,show.legend = F) +
+  scale_fill_manual(values=c("positive"=RColorBrewer::brewer.pal(7,"Reds")[5],
+                    "negative"=RColorBrewer::brewer.pal(7,"Blues")[5]))+
+  theme_classic(base_size=16)+
+  theme(axis.text.y = element_text(hjust = 0,size=16)) +
+  xlab(expression(sign(PC[loadings])*log[10](pvalue)))+
+  ylab("")+
+  guides(fill=guide_legend(""))+
+  scale_y_discrete(labels = function(x) stringr::str_wrap(x, width = 70))
+
+
+ggsave(plot=last_plot(),file="./Figures/GO_jump_for_PC4.pdf",width=12,height=6)
+
+```
+
+
+
+
+# Figure 3D
+
+
+```{r replicate corrected fates}
+
+lineages_we_care_about_Fate=c("Neutrophils", "Monocytes", "Erythroblast","Pre B cells")
+var_list <- c("Age","Cluster.Assignment","Replicate", "Ebf1","Cebpe","absorbing_states")
+
+Seurat::DefaultAssay(seurat_obj)<-"lineage_fates"
+fate_assay<-Seurat::GetAssay(seurat_obj,assay="lineage_fates")
+Seurat::DefaultAssay(seurat_obj)<-"RNA"
+data_fetched<- t(fate_assay@scale.data[lineages_we_care_about_Fate,colnames(fate_assay)])%>%
+  as.data.frame%>%
+  tibble::rownames_to_column(var="row_names")%>%
+  dplyr::inner_join(Seurat::FetchData(seurat_obj, vars = var_list)%>%
+                      tibble::rownames_to_column(var="row_names"), 
+                    by="row_names")
+# getting top left panel
+data_fetched%>%
+  as.data.frame%>%
+  tibble::rownames_to_column(var="row_names")%>%
+  dplyr::select(row_names,Replicate,Cluster.Assignment,Age,Cebpe,Neutrophils,absorbing_states)%>%
+  tidyr::pivot_longer(cols = !c(row_names,Cebpe,Replicate,Cluster.Assignment,Age,absorbing_states),names_to="lineage",values_to = "fate")%>%
+  filter(is.na(absorbing_states))%>%
+  filter(lineage=="Neutrophils")%>%
+  ggplot(aes(x=fate,y=Cebpe,group=interaction(Age,Replicate),color=interaction(Age,lineage),linetype=interaction(Age,lineage)))+
+  geom_smooth(method="loess",se=F,span=1.2)+
+  xlab("Fate Probability")+
+  ylab("Cebpe\nExpression")+
+  theme_classic(base_size = 24)+
+  ylim(c(0,NA))+
+  xlim(c(0,1))+
+  scale_color_manual(values=c(`Young.Neutrophils`="#3182bd", 
+                              `Middle-Aged.Neutrophils`="#9ecae1"),
+                              labels=c("Young Neu",
+                                       "Middle-Aged Neu"))+
+  scale_linetype_manual(values=c(`Young.Neutrophils`=1, 
+                              `Middle-Aged.Neutrophils`=2),
+                        labels=c("Young Neu",
+                                 "Middle-Aged Neu"))+
+  theme(legend.position = "inside",legend.position.inside = c(0.25,1))+
+    guides(color=guide_legend(title=""),
+           linetype=guide_legend(title=""))+
+  theme(strip.text.x = element_text(size = 14))
+
+
+ggsave("./Figures/Neutro_fates_replicates_vs_Cebpe_with_legend.pdf",plot=last_plot(),width=7.5,height=4.5,dpi=320)
+
+
+# getting bottom left panel
+  data_fetched%>%
+  as.data.frame%>%
+  tibble::rownames_to_column(var="row_names")%>%
+  dplyr::select(row_names,Replicate,Cluster.Assignment,Age,Ebf1,`Pre B cells`,absorbing_states)%>%
+  tidyr::pivot_longer(cols = !c(row_names,Cebpe,Replicate,Cluster.Assignment,Age,absorbing_states),names_to="lineage",values_to = "fate")%>%
+  filter(is.na(absorbing_states))%>%
+  filter(lineage=="Neutrophils")%>%
+  filter(lineage=="Pre B cells")%>%
+  ggplot(aes(x=fate,y=Ebf1,group=interaction(Age,Replicate),color=interaction(Age,lineage),linetype=interaction(Age,lineage)))+
+  geom_smooth(method="loess",se=F,span=0.5)+
+  xlab("Fate Probability")+
+  ylab("Ebf1\nExpression")+
+  theme_classic(base_size = 24)+
+  ylim(c(0,NA))+
+  xlim(c(0,1))+
+  scale_color_manual(values=c(`Young.Pre B cells`="#31a354",#"#B2182B",# Greens
+                              `Middle-Aged.Pre B cells`="#a1d99b"),
+                              labels=c("Young B",
+                                       "Middle-Aged B"))+
+  scale_linetype_manual(values=c(`Young.Pre B cells`=1,#"#B2182B",# Greens
+                              `Middle-Aged.Pre B cells`=2),
+                              labels=c("Young B",
+                                       "Middle-Aged B"))+
+  theme(legend.position = "inside",legend.position.inside = c(0.25,1))+
+    guides(color=guide_legend(title=""),
+          linetype=guide_legend(title=""))+
+  theme(strip.text.x = element_text(size = 14))
+
+ggsave("./Figures/B_fates_replicates_vs_Ebf1_with_legend.pdf",plot=last_plot(),width=7.5,height=4.5,dpi=320)
+
+```
+
+Getting the RNA figures
+
+```{r RNA per lineage}
+
+data_fetched%>%
+  dplyr::select(Neutrophils, Monocytes, Erythroblast,`Pre B cells`,Ebf1,Cebpe,absorbing_states)%>%
+  tibble::rownames_to_column(var="row_names")%>%
+  tidyr::pivot_longer(cols=!c(row_names,Ebf1,Cebpe,absorbing_states),names_to="lineages",values_to="fate_prob")%>%
+  filter(is.na(absorbing_states))%>%
+  ggplot(aes(x=fate_prob,y=Cebpe,color=lineages))+
+  geom_smooth(method="loess",se=F,span=1.2)+
+  xlab("Fate Probability")+
+  ylab("Cebpe Expression")+
+  theme_classic(base_size = 24)+
+  xlim(c(0,1))+
+  scale_color_manual(values=c("Pre B cells" = (pals::kelly(n=14)[-1])[9],
+                              "Erythroblast"=(pals::kelly(n=14)[-1])[7],
+                              "Monocytes" =(pals::kelly(n=14)[-1])[12],
+                              "Neutrophils"=(pals::kelly(n=14)[-1])[11]),
+                     labels=c("B","Ery","Mono","Neu"))+
+  theme(legend.position = "none")+
+    guides(color=guide_legend(title=""))+
+  theme(strip.text.x = element_text(size = 14))
+ggsave("./Figures/four_fates_vs_Cebpe_RNA_ditched_0_expressing_cells_reg_fit_no_legend.pdf",plot=last_plot(),width=7.5,height=4.5,dpi=320)
+
+
+data_fetched%>%
+  dplyr::select(Neutrophils, Monocytes, Erythroblast,`Pre B cells`,Ebf1,Cebpe,absorbing_states)%>%
+  tibble::rownames_to_column(var="row_names")%>%
+  tidyr::pivot_longer(cols=!c(row_names,Ebf1,Cebpe,absorbing_states),names_to="lineages",values_to="fate_prob")%>%
+  filter(is.na(absorbing_states))%>%
+  ggplot(aes(x=fate_prob,y=Ebf1,color=lineages))+
+  geom_smooth(method="loess",se=F,span=1.2)+
+  xlab("Fate Probability")+
+  ylab("Ebf1 Expression")+
+  theme_classic(base_size = 24)+
+  xlim(c(0,1))+
+  scale_color_manual(values=c("Pre B cells" = (pals::kelly(n=14)[-1])[9],
+                              "Erythroblast"=(pals::kelly(n=14)[-1])[7],
+                              "Monocytes" =(pals::kelly(n=14)[-1])[12],
+                              "Neutrophils"=(pals::kelly(n=14)[-1])[11]),
+                     labels=c("B","Ery","Mono","Neu"))+
+  theme(legend.position = "none")+
+    guides(color=guide_legend(title=""))+
+  theme(strip.text.x = element_text(size = 14))
+
+
+ggsave("./Figures/four_fates_vs_Ebf1_RNA_ditched_0_expressing_cells_reg_fit_no_legend.pdf",plot=last_plot(),width=7.5,height=4.5,dpi=320)
+
+
+
+```
+
+Getting the TF figures
+
+```{r TFs per lineage}
+Seurat::DefaultAssay(seurat_obj)<-"tfsulm"
+data_fetched<- t(fate_assay@scale.data[lineages_we_care_about_Fate,colnames(fate_assay)])%>%
+  as.data.frame%>%
+  tibble::rownames_to_column(var="row_names")%>%
+  dplyr::inner_join(Seurat::FetchData(seurat_obj, vars = var_list)%>%
+                      tibble::rownames_to_column(var="row_names"), 
+                    by="row_names")
+
+
+data_fetched%>%
+  dplyr::select(Neutrophils, Monocytes, Erythroblast,`Pre B cells`,Ebf1,Cebpe,absorbing_states)%>%
+  tibble::rownames_to_column(var="row_names")%>%
+  tidyr::pivot_longer(cols=!c(row_names,Ebf1,Cebpe,absorbing_states),names_to="lineages",values_to="fate_prob")%>%
+    filter(is.na(absorbing_states))%>%
+  ggplot(aes(x=fate_prob,y=Cebpe,color=lineages))+
+  geom_smooth(method="loess",se=F,span=1.2)+
+  xlab("Fate Probability")+
+ ylab("Cebpe Activity")+
+  theme_classic(base_size = 24)+
+  xlim(c(0,1))+
+  scale_color_manual(values=c("Pre B cells" = (pals::kelly(n=14)[-1])[9],
+                              "Erythroblast"=(pals::kelly(n=14)[-1])[7],
+                              "Monocytes" =(pals::kelly(n=14)[-1])[12],
+                              "Neutrophils"=(pals::kelly(n=14)[-1])[11]),
+                     labels=c("B","Ery","Mono","Neu"))+
+  theme(legend.position = "none")+
+    guides(color=guide_legend(title=""))+
+  theme(strip.text.x = element_text(size = 14))
+
+ggsave("./Figures/four_fates_vs_Cebpe_tf_ditched_0_expressing_cells_reg_fit_no_legend.pdf",plot=last_plot(),width=7.5,height=4.5,dpi=320)
+
+
+data_fetched%>%
+  dplyr::select(Neutrophils, Monocytes, Erythroblast,`Pre B cells`,Ebf1,Cebpe,absorbing_states)%>%
+  tibble::rownames_to_column(var="row_names")%>%
+  tidyr::pivot_longer(cols=!c(row_names,Ebf1,Cebpe,absorbing_states),names_to="lineages",values_to="fate_prob")%>%
+    filter(is.na(absorbing_states))%>%
+  ggplot(aes(x=fate_prob,y=Ebf1,color=lineages))+
+  geom_smooth(method="loess",se=F,span=1.2)+
+  xlab("Fate Probability")+
+ ylab("Ebf1 Activity")+
+  theme_classic(base_size = 24)+
+  xlim(c(0,1))+
+  scale_color_manual(values=c("Pre B cells" = (pals::kelly(n=14)[-1])[9],
+                              "Erythroblast"=(pals::kelly(n=14)[-1])[7],
+                              "Monocytes" =(pals::kelly(n=14)[-1])[12],
+                              "Neutrophils"=(pals::kelly(n=14)[-1])[11]),
+                     labels=c("B","Ery","Mono","Neu"))+
+  theme(legend.position = "none")+
+    guides(color=guide_legend(title=""))+
+  theme(strip.text.x = element_text(size = 14))
+
+ggsave("./Figures/four_fates_vs_Ebf1_tf_ditched_0_expressing_cells_reg_fit_no_legend.pdf",plot=last_plot(),width=7.5,height=4.5,dpi=320)
+
+```
+
+
+
+

@@ -1,0 +1,371 @@
+---
+title: "Figure2_replication"
+author: "Michael Bowman and Bobby Bowman"
+date: "2026-09-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+library(Seurat)
+library(SupeRJump)
+library(dplyr)
+library(ggplot2)
+
+```
+
+
+
+```{r}
+load(system.file(paste0('data/Human_bone_marrow_combined.rDa'), package = 'SupeRJump'))
+
+```
+
+# Figure 2A replication
+
+
+```{r Figure 2a prep and heatmaps}
+df_for_combo_names<-seurat_obj@meta.data%>%
+   tibble::rownames_to_column(var = "row_names")%>%
+   filter(is.na(absorbing_states))%>%
+   rename(group="clusters")%>%
+   select(row_names,group)
+
+
+Cluster_to_cluster_jump_VP<-seurat_obj@graphs[["visitation_Jump"]]%>%as.data.frame%>%
+  tibble::rownames_to_column(var="source_cells")%>%
+  tidyr::pivot_longer(!c(source_cells),names_to = "row_names",values_to = "VP")%>%
+  inner_join(df_for_combo_names,by = "row_names")%>%
+  rename(dest_group="group")%>%
+  rename(dest_names ="row_names")%>%
+  inner_join(df_for_combo_names,by =c("source_cells"="row_names"))%>%
+  rename(source_group="group")%>%
+  dplyr::group_by(source_group,dest_group)%>%
+  summarize(aggregated_VP = sum(VP))%>%
+  tidyr::pivot_wider(id_cols = source_group,names_from = dest_group,values_from = aggregated_VP)%>%
+  tibble::column_to_rownames(var="source_group")
+
+order_of_heatmap<-c("HSC_1","HSC_2","Precursors","Mono_1","Mono_2","DCs","CLP","Mega","Ery_1","Ery_2")
+
+normed_Cluster_to_cluster_jump_VP<-apply(Cluster_to_cluster_jump_VP[order_of_heatmap,order_of_heatmap],2,function(x){x/sum(x)})
+
+
+Cluster_to_cluster_CR2_VP<-seurat_obj@graphs[["visitation_CR2"]]%>%as.data.frame%>%
+  tibble::rownames_to_column(var="source_cells")%>%
+  tidyr::pivot_longer(!c(source_cells),names_to = "row_names",values_to = "VP")%>%
+  inner_join(df_for_combo_names,by = "row_names")%>%
+  rename(dest_group="group")%>%
+  rename(dest_names ="row_names")%>%
+  inner_join(df_for_combo_names,by =c("source_cells"="row_names"))%>%
+  rename(source_group="group")%>%
+  dplyr::group_by(source_group,dest_group)%>%
+  summarize(aggregated_VP = sum(VP))%>%
+  tidyr::pivot_wider(id_cols = source_group,names_from = dest_group,values_from = aggregated_VP)%>%
+  tibble::column_to_rownames(var="source_group")
+
+order_of_heatmap<-c("HSC_1","HSC_2","Precursors","Mono_1","Mono_2","DCs","CLP","Mega","Ery_1","Ery_2")
+
+normed_Cluster_to_cluster_CR2_VP<-apply(Cluster_to_cluster_CR2_VP[order_of_heatmap,order_of_heatmap],2,function(x){x/sum(x)})
+
+
+pheatmap::pheatmap(mat = normed_Cluster_to_cluster_jump_VP,
+                   color = colors.use,
+                   scale="row",
+                   border_color = "white",
+                   cellwidth = 20,
+                   cellheight = 20,
+                   treeheight_row = 20,
+                   treeheight_col = 20,
+                   cluster_rows = F,
+                   cluster_cols = F,
+                   show_rownames = T,
+                   show_colnames = T,filename = "./Figures/CR2/VP_Jump_heatmap.pdf")
+
+pheatmap::pheatmap(mat = normed_Cluster_to_cluster_CR2_VP,
+                   color = colors.use,
+                   scale="row",
+                   border_color = "white",
+                   cellwidth = 20,
+                   cellheight = 20,
+                   treeheight_row = 20,
+                   treeheight_col = 20,
+                   cluster_rows = F,
+                   cluster_cols = F,
+                   show_rownames = T,
+                   show_colnames = T,filename = "./Figures/CR2/VP_cr2_heatmap.pdf")
+
+
+```
+
+
+
+# Figure 2B replication
+
+
+## Figure 2B top left replication
+
+```{r Irf8 vs pseudotime }
+data_fetched<-Seurat::FetchData(seurat_obj,vars = c("IRF8","orig.ident","clusters","palantir_pseudotime"))
+
+data_fetched%>%
+  as.data.frame%>%
+  tibble::rownames_to_column(var="row_names")%>%
+  distinct(row_names,orig.ident,palantir_pseudotime,IRF8,clusters)%>%
+  as.data.frame%>%
+  ggplot(aes(x=palantir_pseudotime,y=IRF8,color=interaction(orig.ident,clusters)))+
+  geom_smooth(se=F)+
+  xlab("Pseudotime")+
+  ylab("IRF8\nExpression")+
+  ggpubr::theme_classic2(base_size = 24)+
+  xlim(c(0,1))+
+  scale_color_manual(values = c(Run4.HSC_1="#222222",
+                               Run5.HSC_1="#222222",
+                               Run4.HSC_2="#F3C300",
+                               Run5.HSC_2="#F3C300",
+                               Run4.Precursors="#875692",
+                               Run5.Precursors="#875692",
+                               Run4.Mono_1="#F38400",
+                               Run5.Mono_1="#F38400",
+                               Run4.Mono_2="#A1CAF1",
+                               Run5.Mono_2="#A1CAF1",
+                               Run4.DCs="#BE0032",
+                               Run5.DCs="#BE0032",
+                               Run4.CLP="#C2B280",
+                               Run5.CLP="#C2B280",
+                               Run4.Mega="#848482",
+                               Run5.Mega="#848482",
+                               Run4.Ery_1="#008856",
+                               Run5.Ery_1="#008856",
+                               Run4.Ery_2="#E68FAC",
+                               Run5.Ery_2="#E68FAC"
+                               ))+ theme(legend.position = "none")
+ ggsave(filename = "./Figures/IRF8_expression_vs_pseudotime_by_cell_cluster_no_legend.pdf",plot=last_plot(),width=7.5,height=4.5,dpi=320)
+
+
+
+```
+
+## Figure 2B bottom left
+```{r gata1 vs pseudotime }
+data_fetched<-FetchData(seurat_obj,vars = c("GATA1","orig.ident","clusters","palantir_pseudotime"))
+data_fetched%>%
+  as.data.frame%>%
+  tibble::rownames_to_column(var="row_names")%>%
+  distinct(row_names,orig.ident,palantir_pseudotime,GATA1,clusters)%>%as.data.frame%>%
+  ggplot(aes(x=palantir_pseudotime,y=GATA1,color=interaction(orig.ident,clusters)))+
+  geom_smooth(method=lm,formula = y~exp(x),se=F)+
+  xlab("Pseudotime")+
+  ylab("GATA1\nExpression")+
+  ggpubr::theme_classic2(base_size = 24)+
+  xlim(c(0,1))+
+  scale_color_manual(values = c(Run4.HSC_1="#222222",
+                               Run5.HSC_1="#222222",
+                               Run4.HSC_2="#F3C300",
+                               Run5.HSC_2="#F3C300",
+                               Run4.Precursors="#875692",
+                               Run5.Precursors="#875692",
+                               Run4.Mono_1="#F38400",
+                               Run5.Mono_1="#F38400",
+                               Run4.Mono_2="#A1CAF1",
+                               Run5.Mono_2="#A1CAF1",
+                               Run4.DCs="#BE0032",
+                               Run5.DCs="#BE0032",
+                               Run4.CLP="#C2B280",
+                               Run5.CLP="#C2B280",
+                               Run4.Mega="#848482",
+                               Run5.Mega="#848482",
+                               Run4.Ery_1="#008856",
+                               Run5.Ery_1="#008856",
+                               Run4.Ery_2="#E68FAC",
+                               Run5.Ery_2="#E68FAC"
+                               ))+ theme(legend.position = "none")
+ ggsave(filename = "./Figures/GATA1_expression_vs_pseudotime_by_cell_cluster_no_legend.pdf",plot=last_plot(),width=7.5,height=4.5,dpi=320)
+
+
+```
+
+
+
+## Figure 2B top middle
+
+
+```{r irf8 vs DC fate ind}
+data_fetched_ind<-Seurat::FetchData(seurat_obj,vars = c("IRF8","orig.ident","clusters","palantir_pseudotime"))%>%
+  tibble::rownames_to_column(var="row_names")%>%
+  dplyr::inner_join(Seurat::GetAssayData(seurat_obj,"lineage_fates_Jump_ind",slot="data")["DCs",]%>%
+                                                                    as.data.frame%>%
+                                                                    tibble::rownames_to_column(var="row_names")%>%
+                      dplyr::rename(Jump_fate="."),
+                    by="row_names")%>%
+  inner_join(Seurat::GetAssayData(seurat_obj,"lineage_fates_CR2_ind",slot="data")["DCs",]%>%
+                                                                    as.data.frame%>%
+                                                                    tibble::rownames_to_column(var="row_names")%>%
+                      dplyr::rename(CR2_fate="."),
+                    by="row_names")%>%
+  mutate(Jump_fate=ifelse(Jump_fate==1,1,Jump_fate/max(Jump_fate[which(Jump_fate!=1)])))
+
+
+data_fetched_ind%>%
+  as.data.frame%>%
+  tidyr::pivot_longer(cols = !c(row_names,IRF8,orig.ident,clusters,palantir_pseudotime),names_to="lineage",values_to = "fate")%>%
+  as.data.frame%>%
+  ggplot(aes(x=fate,y=IRF8,group=interaction(orig.ident,lineage),color=interaction(orig.ident,lineage)))+
+  geom_smooth(method="loess",se=F,span=1.2)+
+ xlab("Fate Probability")+
+  ylab("IRF8\nExpression")+
+  ggpubr::theme_classic2(base_size = 24)+
+  ylim(c(0,NA))+
+  xlim(c(0,1))+
+  scale_color_manual(values=c(Run4.CR2_fate="#B2182B",
+                              Run5.CR2_fate="#EF8A62",
+                              Run4.Jump_fate="#2166AC",
+                              Run5.Jump_fate="#67A9CF"),
+                     labels=c("Diffusion Rep. 1",
+                             "Diffusion Rep. 2",
+                             "Jump Rep. 1",
+                             "Jump Rep. 2"))+
+  theme(legend.position = "none")
+
+
+  ggsave(filename = "./Figures/IRF8_expression_vs_DC_Fates_replicates_individually_no_legend.pdf",plot=last_plot(),width=7.5,height=4.5,dpi=320)
+
+
+```
+
+
+## Figure 2B bottom middle
+
+```{r gata1 vs Ery fates ind}
+data_fetched_ind<-Seurat::FetchData(seurat_obj,vars = c("GATA1","orig.ident","clusters","palantir_pseudotime"))%>%
+  tibble::rownames_to_column(var="row_names")%>%
+  dplyr::inner_join(Seurat::GetAssayData(seurat_obj,"lineage_fates_Jump_ind",slot="data")["Ery-2",]%>%
+                                                                    as.data.frame%>%
+                                                                    tibble::rownames_to_column(var="row_names")%>%
+                      dplyr::rename(Jump_fate="."),
+                    by="row_names")%>%
+  inner_join(Seurat::GetAssayData(seurat_obj,"lineage_fates_CR2_ind",slot="data")["Ery-2",]%>%
+                                                                    as.data.frame%>%
+                                                                    tibble::rownames_to_column(var="row_names")%>%
+                      dplyr::rename(CR2_fate="."),
+                    by="row_names")%>%
+  mutate(Jump_fate=ifelse(Jump_fate==1,1,Jump_fate/max(Jump_fate[which(Jump_fate!=1)])))
+
+
+data_fetched_ind%>%
+  as.data.frame%>%
+  tidyr::pivot_longer(cols = !c(row_names,GATA1,orig.ident,clusters,palantir_pseudotime),names_to="lineage",values_to = "fate")%>%
+  as.data.frame%>%
+  ggplot(aes(x=fate,y=GATA1,group=interaction(orig.ident,lineage),color=interaction(orig.ident,lineage)))+
+  geom_smooth(method="loess",se=F,span=1.2)+
+ xlab("Fate Probability")+
+  ylab("IRF8\nExpression")+
+  ggpubr::theme_classic2(base_size = 24)+
+  ylim(c(0,NA))+
+  xlim(c(0,1))+
+  scale_color_manual(values=c(Run4.CR2_fate="#B2182B",
+                              Run5.CR2_fate="#EF8A62",
+                              Run4.Jump_fate="#2166AC",
+                              Run5.Jump_fate="#67A9CF"),
+                     labels=c("Diffusion Rep. 1",
+                             "Diffusion Rep. 2",
+                             "Jump Rep. 1",
+                             "Jump Rep. 2"))+
+  theme(legend.position = "none")
+
+
+
+  ggsave(filename = "./Figures/GATA1_expression_vs_Ery_Fates_replicates_individually_no_legend.pdf",plot=last_plot(),width=7.5,height=4.5,dpi=320)
+
+
+```
+
+
+## Figure 2B top right
+
+```{r irf8 vs DC fates global}
+data_fetched<-Seurat::FetchData(seurat_obj,vars = c("IRF8","orig.ident","clusters","palantir_pseudotime"))%>%
+  tibble::rownames_to_column(var="row_names")%>%
+  dplyr::inner_join(Seurat::GetAssayData(seurat_obj,"lineage_fates_Jump",slot="data")["DCs",]%>%
+                                                                    as.data.frame%>%
+                                                                    tibble::rownames_to_column(var="row_names")%>%
+                      dplyr::rename(Jump_fate="."),
+                    by="row_names")%>%
+  inner_join(Seurat::GetAssayData(seurat_obj,"lineage_fates_CR2",slot="data")["DCs",]%>%
+                                                                    as.data.frame%>%
+                                                                    tibble::rownames_to_column(var="row_names")%>%
+                      dplyr::rename(CR2_fate="."),
+                    by="row_names")%>%
+  mutate(Jump_fate=ifelse(Jump_fate==1,1,Jump_fate/max(Jump_fate[which(Jump_fate!=1)])))
+
+
+data_fetched%>%
+  as.data.frame%>%
+  tidyr::pivot_longer(cols = !c(row_names,IRF8,orig.ident,clusters,palantir_pseudotime),names_to="lineage",values_to = "fate")%>%
+  as.data.frame%>%
+  ggplot(aes(x=fate,y=IRF8,group=interaction(orig.ident,lineage),color=interaction(orig.ident,lineage)))+
+  geom_smooth(method="loess",se=F,span=1.2)+
+  xlab("Fate Probability")+
+  ylab("IRF8\nExpression")+
+  ggpubr::theme_classic2(base_size = 24)+
+  ylim(c(0,NA))+
+  xlim(c(0,1))+
+  scale_color_manual(values=c(Run4.CR2_fate="#B2182B",
+                              Run5.CR2_fate="#EF8A62",
+                              Run4.Jump_fate="#2166AC",
+                              Run5.Jump_fate="#67A9CF"),labels=c("Diffusion Rep. 1",
+                                                                       "Diffusion Rep. 2",
+                                                                       "Jump Rep. 1",
+                                                                       "Jump Rep. 2"))+
+  theme(legend.position = "none")
+  ggsave(filename = "./Figures/IRF8_expression_vs_DC_Fates_global_no_legend.pdf",plot=last_plot(),width=7.5,height=4.5,dpi=320)
+
+```
+
+## Figure 2B bottom right
+
+```{r gata1 vs DC fates global}
+data_fetched<-Seurat::FetchData(seurat_obj,vars = c("GATA1","orig.ident","clusters","palantir_pseudotime"))%>%
+  tibble::rownames_to_column(var="row_names")%>%
+  dplyr::inner_join(Seurat::GetAssayData(seurat_obj,"lineage_fates_Jump",slot="data")["Ery-2",]%>%
+                                                                    as.data.frame%>%
+                                                                    tibble::rownames_to_column(var="row_names")%>%
+                      dplyr::rename(Jump_fate="."),
+                    by="row_names")%>%
+  inner_join(Seurat::GetAssayData(seurat_obj,"lineage_fates_CR2",slot="data")["Ery-2",]%>%
+                                                                    as.data.frame%>%
+                                                                    tibble::rownames_to_column(var="row_names")%>%
+                      dplyr::rename(CR2_fate="."),
+                    by="row_names")%>%
+  mutate(Jump_fate=ifelse(Jump_fate==1,1,Jump_fate/max(Jump_fate[which(Jump_fate!=1)])))
+
+data_fetched%>%
+  as.data.frame%>%
+  tidyr::pivot_longer(cols = !c(row_names,GATA1,orig.ident,clusters,palantir_pseudotime),names_to="lineage",values_to = "fate")%>%
+  as.data.frame%>%
+  ggplot(aes(x=fate,y=GATA1,group=interaction(orig.ident,lineage),color=interaction(orig.ident,lineage)))+
+  geom_smooth(method="loess",se=F,span=1.2)+
+  xlab("Fate Probability")+
+  ylab("GATA1\nExpression")+
+  ggpubr::theme_classic2(base_size = 24)+
+  ylim(c(0,NA))+
+  xlim(c(0,1))+
+  scale_color_manual(values=c(Run4.CR2_fate="#B2182B",
+                              Run5.CR2_fate="#EF8A62",
+                              Run4.Jump_fate="#2166AC",
+                              Run5.Jump_fate="#67A9CF"),labels=c("Diffusion Rep. 1",
+                                                                       "Diffusion Rep. 2",
+                                                                       "Jump Rep. 1",
+                                                                       "Jump Rep. 2"))+
+  theme(legend.position = "none")
+  ggsave(filename = "./Figures/GATA1_expression_vs_DC_Fates_global_no_legend.pdf",plot=last_plot(),width=7.5,height=4.5,dpi=320)
+
+
+```
+
+
+
