@@ -22,7 +22,7 @@ library(ggplot2)
 
 
 ```{r}
-data("Human_bone_marrow_combined") # Jump_seurat and Diff_seurat in one
+load(system.file(paste0('data/Human_bone_marrow_combined.rDa'), package = 'SupeRJump'))
 
 ```
 
