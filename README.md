@@ -41,7 +41,10 @@ Then load the package:
 library(SupeRJump)
 ```
 
-You can access and download the opensource seurat object we use in the vignette at [this googledrive link](https://drive.google.com/drive/folders/1xb-wKcAoJxsIBXGXyxoW0IRLb9YZbWkG?usp=sharing). The data we are working on today is from [one of our prior works](https://www.cell.com/cancer-cell/fulltext/S1535-6108(24)00397-0). This dataset explores mutation order for acute myeloid leukemia. We will already start with a Seurat object labeled with cell types.
+You can access and download the opensource seurat object we use in the vignette at [this googledrive link](https://drive.google.com/drive/folders/1xb-wKcAoJxsIBXGXyxoW0IRLb9YZbWkG?usp=sharing). The data we are working on today is from [one of our prior works](https://www.cell.com/cancer-cell/fulltext/S1535-6108(24)00397-0). This dataset explores mutation order for acute myeloid leukemia. We will already start with a Seurat object labeled with cell types. SupeRJump builds on existing Seurat objects with a view of new assays, graphs, reduction, and misc, we introduce.
+
+![New introduced data in Seurat schematic](Data_location_in_seurat.png)
+
 
 ---
 
