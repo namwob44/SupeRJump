@@ -7,6 +7,10 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(eval = FALSE)
+knitr::opts_chunk$set(fig.align='center',fig.height=6.75,fig.width=12)
+knitr::opts_chunk$set(warning = FALSE)
+
 ```
 
 ```{r load libraries}
