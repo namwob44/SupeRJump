@@ -3,7 +3,7 @@
 set -e
 
 REPO_URL="https://github.com/namwob44/SupeRJump.git"
-BRANCH="master"
+BRANCH="main"
 
 echo "Checking Git..."
 if ! command -v git >/dev/null 2>&1; then
